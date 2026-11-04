@@ -12,12 +12,15 @@ function field([id,label,unit,kind]) {
 }
 basic.forEach(d=>$('basic-fields').append(field(d)));
 settings.forEach(d=>$('setting-fields').append(field(d)));
+const copyIcon='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="8" y="8" width="12" height="13" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"></path></svg>';
+function rowCopyButton(id,label,kind,text){return `<button type="button" class="row-copy-button" id="copy-${kind}-${id}" data-copy="${kind}" data-item="${id}" aria-label="${label}の${kind==='amount'?'見積計上額':'算定根拠'}をコピー">${copyIcon}<span>${text}</span></button>`;}
 for(const [id,label] of E.items){
  const row=document.createElement('article');row.className='cost-row';row.id='row-'+id;row.setAttribute('aria-label',label);
- row.innerHTML=`<div class="cost-title"><span class="cost-name">${label}</span><span id="basis-${id}" class="basis"></span>${id==='labor'?'<span id="labor-cost" class="basis cost-basis"></span>':''}</div><div class="money-cell"><span class="cell-label">標準額</span><span id="standard-${id}"></span></div><div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span></div><div class="money-cell diff-cell"><span class="cell-label">差額 / 標準比</span><span id="diff-${id}"></span><small id="ratio-${id}"></small><small id="parts-ratio-${id}"></small></div><div class="money-cell"><span class="cell-label">見積計上額</span><strong id="booked-${id}"></strong></div><div class="note-cell"><label class="cell-label" for="memo-${id}">補正理由・メモ</label><input class="note-input" id="memo-${id}" maxlength="100" placeholder="理由を入力（任意）" aria-label="${label}の補正理由・メモ"></div>`;
+ row.innerHTML=`<div class="cost-title"><span class="cost-name">${label}</span><span id="basis-${id}" class="basis"></span>${id==='labor'?'<span id="labor-cost" class="basis cost-basis"></span>':''}${rowCopyButton(id,label,'basis','根拠コピー')}</div><div class="money-cell"><span class="cell-label">標準額</span><span id="standard-${id}"></span></div><div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span></div><div class="money-cell diff-cell"><span class="cell-label">差額 / 標準比</span><span id="diff-${id}"></span><small id="ratio-${id}"></small><small id="parts-ratio-${id}"></small></div><div class="money-cell"><span class="cell-label">見積計上額</span><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount','金額コピー')}</div><div class="note-cell"><label class="cell-label" for="memo-${id}">補正理由・メモ</label><input class="note-input" id="memo-${id}" maxlength="100" placeholder="理由を入力（任意）" aria-label="${label}の補正理由・メモ"></div><div id="row-copy-feedback-${id}" class="row-copy-feedback" role="status" hidden></div>`;
  $('cost-rows').append(row);
 }
 let state, invalid=false, imageUrl;
+const copyingButtons=new Set();
 function read(input){const result=E.parse(input.value,input.dataset.kind,input.dataset.optional==='true');input.setAttribute('aria-invalid',String(!!result.error));$(input.id+'-error').textContent=result.error; if(result.error)invalid=true;return result.value;}
 function basis(p,result){return {parts:'基本入力の部品代',materials:`部品代 × ${E.format(p.materialsRate)}％`,removal:`部品代 × ${E.format(p.removalRate)}％`,protection:`部品代 × ${E.format(p.protectionRate)}％`,labor:`売価：${E.format(p.workers)}人 × ${E.yen(p.laborPrice)} ＝ ${E.yen(result.rows.find(r=>r.id==='labor').standard)}`,shipping:`${E.format(p.workers)}人 × ${E.yen(p.workerShipping)} ＋ ${E.yen(p.shipping)}`};}
 function diffClass(node,value){node.classList.toggle('increase',value>0n);node.classList.toggle('decrease',value<0n);}
@@ -31,6 +34,10 @@ function update(){
   $('ratio-'+r.id).textContent=r.adopted!==null?'標準比 '+E.ratio(r.diff,r.standard):'';
   $('parts-ratio-'+r.id).textContent=partRatioIds.includes(r.id)?'部品代比 '+E.ratio(r.booked,p.parts,2,false):'';
   $('row-'+r.id).classList.toggle('changed',r.diff!==0n);
+  $('copy-amount-'+r.id).title=E.format(r.booked)+' をコピー';
+  $('copy-basis-'+r.id).title=E.copyBasis(p,r)+' をコピー';
+  $('row-copy-feedback-'+r.id).hidden=true;
+  $('row-copy-feedback-'+r.id).replaceChildren();
  }
  $('labor-cost').textContent=`原価（参考）：${E.format(p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(result.laborCost)}`;
  for(const id of ['subtotal','overhead','welfare'])$(id).textContent=E.yen(result[id]);
@@ -39,6 +46,7 @@ function update(){
  $('grand-total').textContent=E.yen(result.total);$('standard-total').textContent=E.yen(result.standardTotal);$('current-total').textContent=E.yen(result.total);$('total-diff').textContent=E.signed(result.diff);diffClass($('total-diff'),result.diff);$('total-rate').textContent=E.ratio(result.diff,result.standardTotal,2);
  renderChanges();$('validation-banner').hidden=!invalid;
  for(const id of ['save-image','copy-text','preview'])$(id).disabled=invalid;
+ document.querySelectorAll('[data-copy]').forEach(button=>button.disabled=invalid||copyingButtons.has(button));
  $('summary-preview').hidden=true;$('image-fallback').hidden=true;$('copy-fallback').hidden=true;$('notice').textContent='';
  if(imageUrl){URL.revokeObjectURL(imageUrl);imageUrl=null;$('export-image').removeAttribute('src');}
 }
@@ -48,6 +56,30 @@ function renderChanges(){
  if(!changed.length){const p=document.createElement('p');p.className='empty-changes';p.textContent='標準設定からの変更はありません';$('changes').append(p);return;}
  for(const r of changed){const article=document.createElement('article');article.className='change-card';const title=document.createElement('h3');title.textContent=r.label;article.append(title);changeLines(r).forEach((line,i)=>{const p=document.createElement('p');p.textContent=line;if(!i)p.className='transition';article.append(p);});$('changes').append(article);}
 }
+async function copyRow(button){
+ if(invalid || copyingButtons.has(button))return;
+ const row=state.rows.find(r=>r.id===button.dataset.item);
+ const amount=button.dataset.copy==='amount';
+ const text=amount?E.format(row.booked):E.copyBasis(state.p,row);
+ const feedback=$('row-copy-feedback-'+row.id);
+ copyingButtons.add(button);button.disabled=true;
+ try{
+  if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');
+  await navigator.clipboard.writeText(text);
+  feedback.textContent=`${amount?'金額':'算定根拠'}をコピーしました：${text}`;
+ }catch{
+  const label=document.createElement('label'),area=document.createElement('textarea');
+  area.id='row-copy-area-'+row.id;area.value=text;area.readOnly=true;area.rows=2;
+  label.htmlFor=area.id;label.textContent='自動コピーが利用できません。以下を選択してコピーしてください。';
+  feedback.replaceChildren(label,area);feedback.hidden=false;area.focus();area.select();
+ }finally{
+  feedback.hidden=false;copyingButtons.delete(button);button.disabled=invalid;
+ }
+}
+$('cost-rows').addEventListener('click',event=>{
+ const button=event.target.closest('button[data-copy]');
+ if(button)copyRow(button);
+});
 $('estimate-form').addEventListener('submit',e=>e.preventDefault());
 $('estimate-form').addEventListener('input',update);
 $('estimate-form').addEventListener('focusin',e=>{

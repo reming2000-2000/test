@@ -28,6 +28,11 @@
     const scaled=(magnitude*100n*power+base/2n)/base;
     return (signedValue?(diff>0n?'＋':diff<0n?'－':''):'')+(scaled/power).toString()+'.'+(scaled%power).toString().padStart(digits,'0')+'％';
   }
+  function copyBasis(p,row) {
+    const bases={parts:'基本入力の部品代',labor:`${format(p.workers)}人×${format(p.laborPrice)}`,materials:`部品代×${format(p.materialsRate)}％`,removal:`部品代×${format(p.removalRate)}％`,shipping:`${format(p.workers)}人×${format(p.workerShipping)}+${format(p.shipping)}`,protection:`部品代×${format(p.protectionRate)}％`};
+    const adjustment=row.diff===0n?'':(row.diff>0n?'+':'-')+format(row.diff<0n?-row.diff:row.diff);
+    return bases[row.id]+adjustment;
+  }
   function calculate(input,adopted={}) {
     const p=input, standard={parts:p.parts,materials:percent(p.parts,p.materialsRate),removal:percent(p.parts,p.removalRate),protection:percent(p.parts,p.protectionRate),labor:mul(p.workers,p.laborPrice),shipping:mul(p.workers,p.workerShipping)+p.shipping};
     const rows=items.map(([id,label])=>{const adoption=adopted[id]??null;const booked=adoption??standard[id];return {id,label,standard:standard[id],adopted:adoption,booked,diff:booked-standard[id]};});
@@ -36,6 +41,6 @@
     const total=subtotal+overhead+welfare, standardTotal=standardSubtotal+percent(standardSubtotal,p.overheadRate)+percent(standard.labor,p.welfareRate)/SCALE*SCALE;
     return {rows,subtotal,overhead,welfare,total,standardTotal,diff:total-standardTotal,laborCost:mul(p.workers,laborCostPrice)};
   }
-  const api={SCALE,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate};
+  const api={SCALE,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis};
   if(typeof module!=='undefined') module.exports=api; else root.Estimate=api;
 })(typeof window!=='undefined'?window:globalThis);

@@ -6,3 +6,13 @@
 
 .cost-basis{color:#65798b;font-weight:500}
 @media(max-width:760px){.basic-grid>:first-child{grid-column:1/-1}}
+
+.row-copy-button{display:inline-flex;align-items:center;justify-content:center;gap:5px;min-height:36px;padding:6px 9px;border:1px solid #cfdee9;border-radius:5px;background:#f7fafc;color:#3c6584;font-size:10px;font-weight:500;line-height:1.4;white-space:nowrap;max-width:100%}
+.row-copy-button svg{flex-shrink:0;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.row-copy-button:hover{background:#edf4fa;border-color:#9ebbd2}
+.cost-title .row-copy-button{margin-top:9px}
+.money-cell>.row-copy-button{display:flex;width:max-content;margin:8px 0 0 auto}
+.row-copy-feedback{grid-column:1/-1;padding:8px 10px;background:#e8f2f9;border-radius:5px;color:#305d7d;font-size:11px;overflow-wrap:anywhere}
+.row-copy-feedback label{display:block;margin-bottom:6px}
+.row-copy-feedback textarea{padding:8px;font-size:14px;text-align:left}
+@media(max-width:760px){.row-copy-button{min-height:44px;font-size:11px}.money-cell>.row-copy-button{margin-left:0}}

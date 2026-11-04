@@ -27,3 +27,18 @@ assert.equal(E.ratio(v(100),0n),'—（基準額0円）');
 assert.equal(E.calculate({...p,workers:v(1),laborPrice:v(100),welfareRate:v(29)}).welfare,v(29));
 assert.equal(E.calculate({...p,parts:v(.1),materialsRate:v(5)}).rows.find(r=>r.id==='materials').standard,v(.005));
 console.log('PASS: 共通作業人員・1.5人・小数3桁・売価/原価・採用変更・法定福利費・0・入力制限');
+// Copy strings retain current rates and exact signed adjustments, without currency units.
+const copyInput={...p,parts:v(150000),workers:v(1.5)};
+const copied=(id,adopted={},input=copyInput)=>{const out=E.calculate(input,adopted);return E.copyBasis(input,out.rows.find(r=>r.id===id));};
+assert.equal(copied('materials',{materials:v(10000)}),'部品代×5％+2,500');
+assert.equal(copied('materials',{materials:v(5000)}),'部品代×5％-2,500');
+assert.equal(copied('materials'),'部品代×5％');
+assert.equal(copied('materials',{materials:v(7500)}),'部品代×5％');
+assert.equal(copied('materials',{materials:0n}),'部品代×5％-7,500');
+assert.equal(copied('materials',{materials:v(10000)},{...copyInput,materialsRate:v(7)}),'部品代×7％-500');
+assert.equal(copied('materials',{materials:v(2500)},{...copyInput,parts:0n}),'部品代×5％+2,500');
+assert.equal(copied('labor',{labor:v(100000)}),'1.5人×58,000+13,000');
+assert.equal(copied('shipping',{shipping:v(20000)}),'1.5人×4,000+20,000-6,000');
+assert.equal(copied('parts',{parts:v(150100)}),'基本入力の部品代+100');
+assert.equal(copied('removal'),'部品代×3％');assert.equal(copied('protection'),'部品代×2％');
+console.log('PASS: 転記用算定根拠の増額・減額・同額・未採用・採用0・率変更・基準0・全6費目');
