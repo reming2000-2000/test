@@ -17,6 +17,8 @@ with sync_playwright() as p:
  page.on('request',lambda r:requests.append(r.url))
  page.goto(BASE);page.wait_for_load_state('networkidle')
  for k,v in [('parts','850000'),('workers','6'),('shipping','20000')]:fill(page.locator('#'+k),v)
+ expected_order=['部品代','交換作業費','消耗資材費','撤去品引取費','部品送料・運搬交通費','養生・安全対策費']
+ assert page.locator('#cost-rows .cost-name').all_text_contents()==expected_order
  assert page.locator('#grand-total').inner_text()=='1,516,476円'
  fill(page.locator('#adopt-materials'),'70000');fill(page.locator('#memo-materials'),'特殊部品のため・重量物')
  assert page.locator('#grand-total').inner_text()=='1,546,726円'
@@ -27,8 +29,10 @@ with sync_playwright() as p:
  page.screenshot(path=str(ART/'desktop.png'),full_page=True)
  start=len(requests)
  page.locator('#preview').click();text=page.locator('#summary-text').inner_text()
+ detail=text.split('【見積内訳】')[1].split('【交換作業費の売価・原価】')[0]
+ assert [line.split('：')[0] for line in detail.strip().splitlines()[:6]]==expected_order
  for expected in ['1,546,726円','1,516,476円','特殊部品のため・重量物','出力日時：','日本時間','16.315％','＋30,250円']:assert expected in text,expected
- page.locator('#copy-text').click();page.wait_for_function("document.querySelector('#notice').textContent === '結果をコピーしました'")
+ page.locator('#copy-text').click();page.wait_for_function("() => document.querySelector('#notice').textContent === '結果をコピーしました'")
  copied=page.evaluate('navigator.clipboard.readText()');assert '特殊部品のため・重量物' in copied
  with page.expect_download() as info: page.locator('#save-image').click()
  download=info.value;assert download.suggested_filename.startswith('estimate_');download.save_as(ART/'result.png')
@@ -61,7 +65,7 @@ with sync_playwright() as p:
  assert '交換作業人工' not in text and '作業員人数' not in text
  start=len(requests)
  page.locator('#copy-text').click()
- page.wait_for_function("document.querySelector('#notice').textContent === '結果をコピーしました'")
+ page.wait_for_function("() => document.querySelector('#notice').textContent === '結果をコピーしました'")
  assert '原価（参考）：1.5人 × 36,000円 ＝ 54,000円' in page.evaluate('navigator.clipboard.readText()')
  with page.expect_download() as info:page.locator('#save-image').click()
  info.value.save_as(ART/'fractional-result.png')
