@@ -1,19 +1,28 @@
 const assert=require('node:assert/strict');
 const E=require('../calc.js');
-const p=Object.fromEntries(Object.entries({...E.defaults,parts:'850000',labor:'6',workers:'3',shipping:'20000'}).map(([k,v])=>[k,E.decimal(v)]));
 const v=n=>E.decimal(String(n));
+const p=Object.fromEntries(Object.entries({...E.defaults,parts:'850000',workers:'6',shipping:'20000'}).map(([k,n])=>[k,v(n)]));
 let s=E.calculate(p);
-assert.deepEqual(s.rows.map(r=>E.format(r.standard)),['850,000','42,500','25,500','17,000','348,000','32,000']);
-for(const [k,n] of Object.entries({subtotal:1315000,overhead:131500,welfare:56776,total:1503276}))assert.equal(s[k],v(n),k);
+assert.deepEqual(s.rows.map(r=>E.format(r.standard)),['850,000','42,500','25,500','17,000','348,000','44,000']);
+for(const [k,n] of Object.entries({subtotal:1327000,overhead:132700,welfare:56776,total:1516476,laborCost:216000}))assert.equal(s[k],v(n),k);
 s=E.calculate(p,{materials:v(70000)});
-for(const [k,n] of Object.entries({subtotal:1342500,overhead:134250,welfare:56776,total:1533526,diff:30250}))assert.equal(s[k],v(n),k);
+for(const [k,n] of Object.entries({subtotal:1354500,overhead:135450,welfare:56776,total:1546726,diff:30250}))assert.equal(s[k],v(n),k);
 assert.equal(s.rows[1].diff,v(27500));assert.equal(E.ratio(s.rows[1].diff,s.rows[1].standard),'＋64.7％');assert.equal(E.ratio(s.rows[1].booked,p.parts,2,false),'8.24％');
-s=E.calculate(p,{labor:v(100000),parts:v(0)});assert.equal(s.welfare,v(16315));assert.equal(s.rows[1].standard,v(42500));assert.equal(s.rows[0].booked,0n);
-assert.equal(E.calculate({...p,laborPrice:v(1),labor:v(1),welfareRate:v(29)}).welfare,0n);
+// One fractional headcount drives labor revenue, shipping and reference cost.
+s=E.calculate({...p,workers:v(1.5)});
+for(const [k,n] of Object.entries({subtotal:1048000,overhead:104800,welfare:14194,total:1166994,laborCost:54000}))assert.equal(s[k],v(n),k);
+assert.equal(s.rows[4].standard,v(87000));assert.equal(s.rows[5].standard,v(26000));
+const changed=E.calculate({...p,workers:v(1.5)},{labor:v(100000)});
+assert.equal(changed.welfare,v(16315));assert.equal(changed.laborCost,v(54000));assert.equal(changed.diff,v(16421));
+// No additional reference cost is added to the estimate total.
+assert.equal(s.total,s.subtotal+s.overhead+s.welfare);
+s=E.calculate({...p,workers:0n});assert.equal(s.laborCost,0n);assert.equal(s.rows[4].standard,0n);assert.equal(s.rows[5].standard,p.shipping);
+s=E.calculate({...p,workers:v(.001)});assert.equal(s.laborCost,v(36));assert.equal(s.rows[4].standard,v(58));assert.equal(s.rows[5].standard,v(20004));
+assert.equal(E.calculate(p,{parts:0n}).rows[1].standard,v(42500));
 assert.equal(E.parse('', 'money',true).value,null);assert.equal(E.parse('0','money',true).value,0n);
-for(const [s,k] of [['-1','money'],['abc','money'],['Infinity','money'],['1.234','money'],['2.5','count'],['1e9','money'],['1,2','money'],['1000000000001','money']])assert.ok(E.parse(s,k).error,s);
-assert.equal(E.parse('８５０，０００').value,v(850000));assert.equal(E.parse('0.25','decimal').value,v(.25));
+for(const [raw,kind] of [['-1','money'],['abc','decimal'],['Infinity','money'],['1.234','money'],['1.2345','decimal'],['1000000.001','decimal'],['1e9','money'],['1,2','money'],['1000000000001','money']])assert.ok(E.parse(raw,kind).error,raw);
+assert.equal(E.parse('１．５','decimal').value,v(1.5));assert.equal(E.parse('1.5','decimal').error,'');
 assert.equal(E.ratio(v(100),0n),'—（基準額0円）');
-assert.equal(E.calculate({...p,labor:v(1),laborPrice:v(100),welfareRate:v(29)}).welfare,v(29));
+assert.equal(E.calculate({...p,workers:v(1),laborPrice:v(100),welfareRate:v(29)}).welfare,v(29));
 assert.equal(E.calculate({...p,parts:v(.1),materialsRate:v(5)}).rows[1].standard,v(.005));
-console.log('計算・採用額・切り捨て・0・小数・入力制限: すべて成功');
+console.log('PASS: 共通作業人員・1.5人・小数3桁・売価/原価・採用変更・法定福利費・0・入力制限');

@@ -1,37 +1,38 @@
 'use strict';
 const E=window.Estimate;
 const $=id=>document.getElementById(id);
-const basic=[['parts','部品代','円','money'],['labor','交換作業人工','人工','decimal'],['workers','作業員人数','人','count'],['shipping','部品送料','円','money']];
-const settings=[['materialsRate','消耗資材費率','％','rate'],['removalRate','撤去品引取費率','％','rate'],['protectionRate','養生・安全対策費率','％','rate'],['laborPrice','交換作業人工単価','円／人工','money'],['workerShipping','作業員送料単価','円／人','money'],['overheadRate','諸経費率','％','rate'],['welfareRate','法定福利費率','％','rate']];
+const basic=[['parts','部品代','円','money'],['workers','作業人員','人','decimal'],['shipping','部品送料','円','money']];
+const settings=[['materialsRate','消耗資材費率','％','rate'],['removalRate','撤去品引取費率','％','rate'],['protectionRate','養生・安全対策費率','％','rate'],['laborPrice','交換作業売価単価','円／人','money'],['workerShipping','作業員送料単価','円／人','money'],['overheadRate','諸経費率','％','rate'],['welfareRate','法定福利費率','％','rate']];
 const partRatioIds=['materials','removal','protection','shipping'];
 const descriptors=[...basic,...settings];
 function field([id,label,unit,kind]) {
  const box=document.createElement('div');
- box.innerHTML=`<label class="input-label" for="${id}">${label}</label><div class="input-shell"><input id="${id}" data-kind="${kind}" inputmode="${kind==='count'?'numeric':'decimal'}" type="text" value="${E.defaults[id]}" aria-describedby="${id}-error" spellcheck="false"><span class="unit">${unit}</span></div><span id="${id}-error" class="input-error"></span>`;
+ box.innerHTML=`<label class="input-label" for="${id}">${label}</label><div class="input-shell"><input id="${id}" data-kind="${kind}" inputmode="decimal" type="text" value="${E.defaults[id]}" aria-describedby="${id}-error" spellcheck="false"><span class="unit">${unit}</span></div><span id="${id}-error" class="input-error"></span>`;
  return box;
 }
 basic.forEach(d=>$('basic-fields').append(field(d)));
 settings.forEach(d=>$('setting-fields').append(field(d)));
 for(const [id,label] of E.items){
  const row=document.createElement('article');row.className='cost-row';row.id='row-'+id;row.setAttribute('aria-label',label);
- row.innerHTML=`<div class="cost-title"><span class="cost-name">${label}</span><span id="basis-${id}" class="basis"></span></div><div class="money-cell"><span class="cell-label">標準額</span><span id="standard-${id}"></span></div><div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span></div><div class="money-cell diff-cell"><span class="cell-label">差額 / 標準比</span><span id="diff-${id}"></span><small id="ratio-${id}"></small><small id="parts-ratio-${id}"></small></div><div class="money-cell"><span class="cell-label">見積計上額</span><strong id="booked-${id}"></strong></div><div class="note-cell"><label class="cell-label" for="memo-${id}">補正理由・メモ</label><input class="note-input" id="memo-${id}" maxlength="100" placeholder="理由を入力（任意）" aria-label="${label}の補正理由・メモ"></div>`;
+ row.innerHTML=`<div class="cost-title"><span class="cost-name">${label}</span><span id="basis-${id}" class="basis"></span>${id==='labor'?'<span id="labor-cost" class="basis cost-basis"></span>':''}</div><div class="money-cell"><span class="cell-label">標準額</span><span id="standard-${id}"></span></div><div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span></div><div class="money-cell diff-cell"><span class="cell-label">差額 / 標準比</span><span id="diff-${id}"></span><small id="ratio-${id}"></small><small id="parts-ratio-${id}"></small></div><div class="money-cell"><span class="cell-label">見積計上額</span><strong id="booked-${id}"></strong></div><div class="note-cell"><label class="cell-label" for="memo-${id}">補正理由・メモ</label><input class="note-input" id="memo-${id}" maxlength="100" placeholder="理由を入力（任意）" aria-label="${label}の補正理由・メモ"></div>`;
  $('cost-rows').append(row);
 }
 let state, invalid=false, imageUrl;
 function read(input){const result=E.parse(input.value,input.dataset.kind,input.dataset.optional==='true');input.setAttribute('aria-invalid',String(!!result.error));$(input.id+'-error').textContent=result.error; if(result.error)invalid=true;return result.value;}
-function basis(p){return {parts:'基本入力の部品代',materials:`部品代 × ${E.format(p.materialsRate)}％`,removal:`部品代 × ${E.format(p.removalRate)}％`,protection:`部品代 × ${E.format(p.protectionRate)}％`,labor:`${E.format(p.labor)}人工 × ${E.yen(p.laborPrice)}`,shipping:`${E.format(p.workers)}人 × ${E.yen(p.workerShipping)} ＋ ${E.yen(p.shipping)}`};}
+function basis(p,result){return {parts:'基本入力の部品代',materials:`部品代 × ${E.format(p.materialsRate)}％`,removal:`部品代 × ${E.format(p.removalRate)}％`,protection:`部品代 × ${E.format(p.protectionRate)}％`,labor:`売価：${E.format(p.workers)}人 × ${E.yen(p.laborPrice)} ＝ ${E.yen(result.rows[4].standard)}`,shipping:`${E.format(p.workers)}人 × ${E.yen(p.workerShipping)} ＋ ${E.yen(p.shipping)}`};}
 function diffClass(node,value){node.classList.toggle('increase',value>0n);node.classList.toggle('decrease',value<0n);}
 function update(){
  invalid=false;const p={},adopted={},memos={};
  descriptors.forEach(([id])=>p[id]=read($(id)));
  E.items.forEach(([id])=>{adopted[id]=read($('adopt-'+id));memos[id]=$('memo-'+id).value;});
- const result=E.calculate(p,adopted);state={p,memos,...result};const bases=basis(p);
+ const result=E.calculate(p,adopted);state={p,memos,...result};const bases=basis(p,result);
  for(const r of result.rows){
   $('basis-'+r.id).textContent=bases[r.id];$('standard-'+r.id).textContent=E.yen(r.standard);$('booked-'+r.id).textContent=E.yen(r.booked);$('diff-'+r.id).textContent=E.signed(r.diff);diffClass($('diff-'+r.id),r.diff);
   $('ratio-'+r.id).textContent=r.adopted!==null?'標準比 '+E.ratio(r.diff,r.standard):'';
   $('parts-ratio-'+r.id).textContent=partRatioIds.includes(r.id)?'部品代比 '+E.ratio(r.booked,p.parts,2,false):'';
   $('row-'+r.id).classList.toggle('changed',r.diff!==0n);
  }
+ $('labor-cost').textContent=`原価（参考）：${E.format(p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(result.laborCost)}`;
  for(const id of ['subtotal','overhead','welfare'])$(id).textContent=E.yen(result[id]);
  $('overhead-basis').textContent=`採用小計 × ${E.format(p.overheadRate)}％`;
  $('welfare-basis').textContent=`採用交換作業費 × ${E.format(p.welfareRate)}％・1円未満切り捨て`;
@@ -66,6 +67,7 @@ function summary(time){
  sections.push(['基本条件',basic.map(([id,label,unit])=>`${label}：${E.format(s.p[id])}${unit}`)]);
  sections.push(['標準設定',settings.map(([id,label,unit])=>`${label}：${E.format(s.p[id])}${unit}`)]);
  sections.push(['見積内訳',[...s.rows.map(r=>`${r.label}：${E.yen(r.booked)}`),`小計（諸経費・法定福利費を除く）：${E.yen(s.subtotal)}`,`諸経費（採用小計 × ${E.format(s.p.overheadRate)}％）：${E.yen(s.overhead)}`,`法定福利費（採用交換作業費 × ${E.format(s.p.welfareRate)}％・切り捨て）：${E.yen(s.welfare)}`,`見積金額（税別）：${E.yen(s.total)}`]]);
+ sections.push(['交換作業費の売価・原価',[basis(s.p,s).labor,`見積計上額：${E.yen(s.rows[4].booked)}`,`原価（参考）：${E.format(s.p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(s.laborCost)}`, '原価は確認用の表示です。見積総額には加算しません。']]);
  sections.push(['標準との比較',[`標準見積総額：${E.yen(s.standardTotal)}`,`現在の採用見積総額：${E.yen(s.total)}`,`総補正額：${E.signed(s.diff)}`,`標準見積に対する増減率：${E.ratio(s.diff,s.standardTotal,2)}`]]);
  const changes=s.rows.filter(r=>r.diff!==0n);
  sections.push(['標準から変更した項目',changes.length?changes.flatMap(r=>[r.label,...changeLines(r),'']):['標準設定からの変更はありません']]);
