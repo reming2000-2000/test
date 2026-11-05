@@ -13,14 +13,25 @@ function field([id,label,unit,kind]) {
 basic.forEach(d=>$('basic-fields').append(field(d)));
 settings.forEach(d=>$('setting-fields').append(field(d)));
 const copyIcon='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="8" y="8" width="12" height="13" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"></path></svg>';
-function rowCopyButton(id,label,kind,text){return `<button type="button" class="row-copy-button" id="copy-${kind}-${id}" data-copy="${kind}" data-item="${id}" aria-label="${label}の${kind==='amount'?'見積計上額':'算定根拠'}をコピー">${copyIcon}<span>${text}</span></button>`;}
+function rowCopyButton(id,label,kind){return `<button type="button" class="row-copy-button" id="copy-${kind}-${id}" data-copy="${kind}" data-item="${id}" aria-label="${label}の${kind==='amount'?'見積計上額':'算定根拠'}をコピー">${copyIcon}</button>`;}
 for(const [id,label] of E.items){
  const row=document.createElement('article');row.className='cost-row';row.id='row-'+id;row.setAttribute('aria-label',label);
- row.innerHTML=`<div class="cost-title"><span class="cost-name">${label}</span><span id="basis-${id}" class="basis"></span>${id==='labor'?'<span id="labor-cost" class="basis cost-basis"></span>':''}${rowCopyButton(id,label,'basis','根拠コピー')}</div><div class="money-cell"><span class="cell-label">標準額</span><span id="standard-${id}"></span></div><div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span></div><div class="money-cell diff-cell"><span class="cell-label">差額 / 標準比</span><span id="diff-${id}"></span><small id="ratio-${id}"></small><small id="parts-ratio-${id}"></small></div><div class="money-cell"><span class="cell-label">見積計上額</span><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount','金額コピー')}</div><div class="note-cell"><label class="cell-label" for="memo-${id}">補正理由・メモ</label><input class="note-input" id="memo-${id}" maxlength="100" placeholder="理由を入力（任意）" aria-label="${label}の補正理由・メモ"></div><div id="row-copy-feedback-${id}" class="row-copy-feedback" role="status" hidden></div>`;
+ row.innerHTML=`
+ <div class="cost-title"><span class="cost-name">${label}</span>
+  <div class="basis-inline"><span id="basis-${id}" class="basis"></span>${rowCopyButton(id,label,'basis')}</div>
+  ${id==='labor'?'<span id="labor-cost" class="basis cost-basis"></span>':''}
+ </div>
+ <div class="money-cell standard-cell"><span class="cell-label">標準額</span><span id="standard-${id}"></span></div>
+ <div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span></div>
+ <div class="money-cell booked-cell"><span class="cell-label">見積計上額</span><div class="amount-inline"><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount')}</div></div>
+ <div id="adjustment-${id}" class="adjustment-summary" hidden><span>標準からの補正</span><strong id="diff-${id}"></strong><span id="ratio-${id}"></span></div>
+ <details id="detail-${id}" class="row-details"><summary>詳細・メモ</summary><div class="row-details-content"><p id="parts-ratio-${id}" class="detail-ratio"></p><label class="memo-label" for="memo-${id}">補正理由・メモ <span>任意</span></label><input class="note-input" id="memo-${id}" maxlength="100" placeholder="理由を入力" aria-label="${label}の補正理由・メモ"></div></details>
+ <div id="row-copy-feedback-${id}" class="row-copy-feedback" role="status" hidden></div>`;
  $('cost-rows').append(row);
 }
 let state, invalid=false, imageUrl;
 const copyingButtons=new Set();
+const copyFeedbackTimers=new Map();
 function read(input){const result=E.parse(input.value,input.dataset.kind,input.dataset.optional==='true');input.setAttribute('aria-invalid',String(!!result.error));$(input.id+'-error').textContent=result.error; if(result.error)invalid=true;return result.value;}
 function basis(p,result){return {parts:'基本入力の部品代',materials:`部品代 × ${E.format(p.materialsRate)}％`,removal:`部品代 × ${E.format(p.removalRate)}％`,protection:`部品代 × ${E.format(p.protectionRate)}％`,labor:`売価：${E.format(p.workers)}人 × ${E.yen(p.laborPrice)} ＝ ${E.yen(result.rows.find(r=>r.id==='labor').standard)}`,shipping:`${E.format(p.workers)}人 × ${E.yen(p.workerShipping)} ＋ ${E.yen(p.shipping)}`};}
 function diffClass(node,value){node.classList.toggle('increase',value>0n);node.classList.toggle('decrease',value<0n);}
@@ -33,9 +44,16 @@ function update(){
   $('basis-'+r.id).textContent=bases[r.id];$('standard-'+r.id).textContent=E.yen(r.standard);$('booked-'+r.id).textContent=E.yen(r.booked);$('diff-'+r.id).textContent=E.signed(r.diff);diffClass($('diff-'+r.id),r.diff);
   $('ratio-'+r.id).textContent=r.adopted!==null?'標準比 '+E.ratio(r.diff,r.standard):'';
   $('parts-ratio-'+r.id).textContent=partRatioIds.includes(r.id)?'部品代比 '+E.ratio(r.booked,p.parts,2,false):'';
-  $('row-'+r.id).classList.toggle('changed',r.diff!==0n);
-  $('copy-amount-'+r.id).title=E.format(r.booked)+' をコピー';
-  $('copy-basis-'+r.id).title=E.copyBasis(p,r)+' をコピー';
+  const row=$('row-'+r.id),wasChanged=row.classList.contains('changed'),changed=r.diff!==0n;
+  row.classList.toggle('changed',changed);
+  $('adjustment-'+r.id).hidden=!changed;
+  const details=$('detail-'+r.id);
+  if(changed&&!wasChanged)details.open=true;
+  if(!changed&&wasChanged&&!memos[r.id])details.open=false;
+  details.querySelector('summary').textContent=changed?'補正理由・詳細':'詳細・メモ';
+  $('copy-amount-'+r.id).title=r.label+'の金額をコピー：'+E.format(r.booked);
+  $('copy-basis-'+r.id).title=r.label+'の算定根拠をコピー：'+E.copyBasis(p,r);
+  clearTimeout(copyFeedbackTimers.get(r.id));copyFeedbackTimers.delete(r.id);
   $('row-copy-feedback-'+r.id).hidden=true;
   $('row-copy-feedback-'+r.id).replaceChildren();
  }
@@ -62,11 +80,13 @@ async function copyRow(button){
  const amount=button.dataset.copy==='amount';
  const text=amount?E.format(row.booked):E.copyBasis(state.p,row);
  const feedback=$('row-copy-feedback-'+row.id);
+ clearTimeout(copyFeedbackTimers.get(row.id));copyFeedbackTimers.delete(row.id);
  copyingButtons.add(button);button.disabled=true;
  try{
   if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');
   await navigator.clipboard.writeText(text);
   feedback.textContent=`${amount?'金額':'算定根拠'}をコピーしました：${text}`;
+  copyFeedbackTimers.set(row.id,setTimeout(()=>{feedback.hidden=true;copyFeedbackTimers.delete(row.id);},4000));
  }catch{
   const label=document.createElement('label'),area=document.createElement('textarea');
   area.id='row-copy-area-'+row.id;area.value=text;area.readOnly=true;area.rows=2;
@@ -89,7 +109,7 @@ $('estimate-form').addEventListener('focusin',e=>{
  if(start!==null && end!==null)el.setSelectionRange(before.slice(0,start).replaceAll(',','').length,before.slice(0,end).replaceAll(',','').length);
 });
 $('estimate-form').addEventListener('focusout',e=>{const el=e.target;if(!el.dataset.kind)return;const r=E.parse(el.value,el.dataset.kind,el.dataset.optional==='true');if(!r.error && el.value.trim() && r.value!==null)el.value=E.format(r.value);});
-$('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';});update();$('parts').focus();});
+$('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});update();$('parts').focus();});
 function stamp(date=new Date()){
  const f=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});const p=Object.fromEntries(f.formatToParts(date).map(v=>[v.type,v.value]));
  return {display:`${p.year}/${p.month}/${p.day} ${p.hour}:${p.minute}:${p.second}（日本時間）`,file:`estimate_${p.year}${p.month}${p.day}_${p.hour}${p.minute}${p.second}.png`};
@@ -136,5 +156,5 @@ $('save-image').addEventListener('click',async()=>{
  finally{button.disabled=invalid;}
 });
 // Browser back/forward caches must not retain previous input values.
-window.addEventListener('pageshow',()=>{descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';});update();});
+window.addEventListener('pageshow',()=>{descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});update();});
 update();

@@ -16,11 +16,19 @@ with sync_playwright() as p:
  page.on('console',lambda m:errors.append(m.text) if m.type=='error' else None)
  page.on('request',lambda r:requests.append(r.url))
  page.goto(BASE);page.wait_for_load_state('networkidle')
+ assert page.locator('#cost-rows .note-input:visible').count()==0
+ assert page.locator('#cost-rows .adjustment-summary:visible').count()==0
+ assert page.locator('#cost-rows details[open]').count()==0
+ assert page.locator('.table-head>span').count()==4
+ assert all(not t.strip() for t in page.locator('[data-copy]').all_text_contents())
  for k,v in [('parts','850000'),('workers','6'),('shipping','20000')]:fill(page.locator('#'+k),v)
  expected_order=['部品代','交換作業費','消耗資材費','撤去品引取費','部品送料・運搬交通費','養生・安全対策費']
  assert page.locator('#cost-rows .cost-name').all_text_contents()==expected_order
  assert page.locator('#grand-total').inner_text()=='1,516,476円'
  fill(page.locator('#adopt-materials'),'70000');fill(page.locator('#memo-materials'),'特殊部品のため・重量物')
+ assert page.locator('#cost-rows .adjustment-summary:visible').count()==1
+ assert page.locator('#detail-materials').get_attribute('open') is not None
+ assert page.locator('#detail-removal').get_attribute('open') is None
  assert page.locator('#grand-total').inner_text()=='1,546,726円'
  assert page.locator('#total-diff').inner_text()=='＋30,250円'
  assert page.locator('#ratio-materials').inner_text()=='標準比 ＋64.7％'
@@ -82,6 +90,22 @@ with sync_playwright() as p:
  fill(page.locator('#parts'),'999');page.reload();assert page.locator('#parts').input_value()=='0';assert page.locator('#grand-total').inner_text()=='0円'
  assert page.locator('#workers').input_value()=='0'
  assert '0円' in page.locator('#labor-cost').inner_text()
+ # Details can be opened without adoption; collapsing must preserve memo and exports.
+ page.locator('#detail-removal summary').click()
+ fill(page.locator('#memo-removal'),'条件確認のためのメモ')
+ page.locator('#detail-removal summary').click()
+ assert not page.locator('#memo-removal').is_visible()
+ page.locator('#preview').click()
+ assert '条件確認のためのメモ' in page.locator('#summary-text').inner_text()
+ fill(page.locator('#adopt-materials'),'100')
+ assert page.locator('#memo-materials').is_visible()
+ page.locator('#detail-materials summary').click()
+ fill(page.locator('#shipping'),'10')
+ assert not page.locator('#memo-materials').is_visible()
+ fill(page.locator('#adopt-materials'),'')
+ assert not page.locator('#adjustment-materials').is_visible()
+ page.locator('#reset').click()
+ assert page.locator('#cost-rows details[open]').count()==0
  # Clipboard fallback when the API is unavailable.
  page.evaluate("Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true})")
  page.locator('#copy-text').click();assert page.locator('#copy-fallback').is_visible();assert '出力日時' in page.locator('#copy-area').input_value()
