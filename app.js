@@ -1,6 +1,7 @@
 'use strict';
 const E=window.Estimate;
 const $=id=>document.getElementById(id);
+function catFeedback(type){document.dispatchEvent(new CustomEvent('estimate:feedback',{detail:{type}}));}
 const basic=[['parts','部品代','円','money'],['workers','作業人員','人','decimal'],['shipping','部品送料','円','money']];
 const settings=[['materialsRate','消耗資材費率','％','rate'],['removalRate','撤去品引取費率','％','rate'],['protectionRate','養生・安全対策費率','％','rate'],['laborPrice','交換作業売価単価','円／人','money'],['workerShipping','作業員送料単価','円／人','money'],['overheadRate','諸経費率','％','rate'],['welfareRate','法定福利費率','％','rate']];
 const partRatioIds=['materials','removal','protection','shipping'];
@@ -68,6 +69,7 @@ function update(){
  $('round-notice').textContent='';
  $('summary-preview').hidden=true;$('image-fallback').hidden=true;$('copy-fallback').hidden=true;$('notice').textContent='';
  if(imageUrl){URL.revokeObjectURL(imageUrl);imageUrl=null;$('export-image').removeAttribute('src');}
+ catFeedback(invalid?'error':'typing');
 }
 function changeLines(r){const p=state.p;return [`標準 ${E.yen(r.standard)} → 採用 ${E.yen(r.adopted)}`,`差額 ${E.signed(r.diff)}　標準比 ${E.ratio(r.diff,r.standard)}`,...(partRatioIds.includes(r.id)?[`部品代比 ${E.ratio(r.booked,p.parts,2,false)}`]:[]),`理由：${state.memos[r.id]||'記入なし'}`];}
 function renderChanges(){
@@ -86,6 +88,7 @@ async function copyRow(button){
  try{
   if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');
   await navigator.clipboard.writeText(text);
+  catFeedback('copy');
   feedback.textContent=`${amount?'金額':'算定根拠'}をコピーしました：${text}`;
   copyFeedbackTimers.set(row.id,setTimeout(()=>{feedback.hidden=true;copyFeedbackTimers.delete(row.id);},4000));
  }catch{
@@ -119,8 +122,9 @@ $('round-standard').addEventListener('click',()=>{
  for(const [id,value] of Object.entries(adopted))$('adopt-'+id).value=E.format(value);
  update();
  $('round-notice').textContent='部品代以外の標準額の端数を調整して、採用額に一括入力しました。';
+ catFeedback('round');
 });
-$('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});update();$('parts').focus();});
+$('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});update();$('parts').focus();catFeedback('reset');});
 function stamp(date=new Date()){
  const f=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});const p=Object.fromEntries(f.formatToParts(date).map(v=>[v.type,v.value]));
  return {display:`${p.year}/${p.month}/${p.day} ${p.hour}:${p.minute}:${p.second}（日本時間）`,file:`estimate_${p.year}${p.month}${p.day}_${p.hour}${p.minute}${p.second}.png`};
@@ -141,7 +145,7 @@ function summary(time){
 $('preview').addEventListener('click',()=>{const out=summary(stamp());$('summary-text').textContent=out.text;$('summary-preview').hidden=false;});
 $('copy-text').addEventListener('click',async()=>{
  const out=summary(stamp());const button=$('copy-text');button.disabled=true;
- try{if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');await navigator.clipboard.writeText(out.text);$('notice').textContent='結果をコピーしました';}
+ try{if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');await navigator.clipboard.writeText(out.text);catFeedback('copy');$('notice').textContent='結果をコピーしました';}
  catch{ $('copy-area').value=out.text;$('copy-fallback').hidden=false;$('copy-area').focus();$('copy-area').select();$('notice').textContent='自動コピーが利用できません。選択されたテキストをコピーしてください。'; }
  finally{button.disabled=invalid;}
 });
@@ -163,7 +167,7 @@ function canvasSummary(out,time){
 }
 $('save-image').addEventListener('click',async()=>{
  const button=$('save-image');button.disabled=true;
- try{const time=stamp(),out=summary(time),canvas=canvasSummary(out,time);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('PNG生成失敗');if(imageUrl)URL.revokeObjectURL(imageUrl);imageUrl=URL.createObjectURL(blob);const a=$('image-link');a.href=imageUrl;a.download=time.file;$('export-image').src=imageUrl;$('image-fallback').hidden=false;a.click();$('notice').textContent='PNG画像を生成しました。保存が始まらない場合は、表示された画像から保存できます。';}
+ try{const time=stamp(),out=summary(time),canvas=canvasSummary(out,time);const blob=await new Promise(resolve=>canvas.toBlob(resolve,'image/png'));if(!blob)throw Error('PNG生成失敗');if(imageUrl)URL.revokeObjectURL(imageUrl);imageUrl=URL.createObjectURL(blob);const a=$('image-link');a.href=imageUrl;a.download=time.file;$('export-image').src=imageUrl;$('image-fallback').hidden=false;a.click();catFeedback('export');$('notice').textContent='PNG画像を生成しました。保存が始まらない場合は、表示された画像から保存できます。';}
  catch{$('notice').textContent='画像を生成できませんでした。テキストコピーをご利用ください。';}
  finally{button.disabled=invalid;}
 });

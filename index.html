@@ -4,10 +4,14 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:,">
-<title>見積計算 | ESTIMATE</title><link rel="stylesheet" href="styles.css?v=9"><script src="calc.js?v=9" defer></script><script src="app.js?v=9" defer></script>
+<title>見積計算 | ESTIMATE</title><link rel="stylesheet" href="styles.css?v=9"><script src="calc.js?v=9" defer></script><script src="app.js?v=10" defer></script>
+<link rel="stylesheet" href="cat.css?v=1"><script src="cat.js?v=1" defer></script>
 </head>
 <body>
-<header class="masthead"><div class="wrap brand"><span class="brand-mark">＝</span><span>ESTIMATE <small>見積計算ツール</small></span><span class="private-badge">端末内で計算</span></div></header>
+<header class="masthead"><div class="wrap brand"><span class="brand-mark">＝</span><span>ESTIMATE <small>見積計算ツール</small></span><span class="private-badge">端末内で計算</span><aside id="pixel-companion" class="pixel-companion" data-state="ready" aria-label="作業ねこ">
+ <div id="cat-content" class="cat-content" aria-hidden="true"><span id="cat-message" class="cat-message" hidden></span><canvas id="cat-canvas" class="cat-canvas" width="40" height="40"></canvas></div>
+ <button id="cat-toggle" class="cat-toggle" type="button" title="猫を休ませる" aria-label="猫を休ませる" aria-expanded="true" aria-controls="cat-content">☾</button>
+</aside></div></header>
 <main class="wrap">
 <div class="page-heading"><div><p class="eyebrow">QUICK ESTIMATE</p><h1>CodeXテスト</h1><p class="muted">条件を入力すると自動計算。必要な費目だけ金額を調整できます。</p></div><button id="reset" class="button secondary">すべてリセット</button></div>
 <div class="privacy-note"><span aria-hidden="true">◈</span> 入力内容は保存・送信されません。再読み込みで消去されます。<br class="mobile-only">残す場合は、計算後に画像保存またはテキストコピーを選んでください。</div>
@@ -21,4 +25,6 @@
 <section class="panel" aria-labelledby="changes-title"><div class="section-heading"><h2 id="changes-title"><span class="step">03</span>標準から変更した項目</h2><span id="change-count" class="tag"></span></div><div id="changes"></div></section>
 <section class="panel export-panel" aria-labelledby="export-title"><div class="section-heading"><div><h2 id="export-title"><span class="step">04</span>結果を持ち出す</h2><p class="muted small">条件・内訳・補正理由をまとめた確認シートを生成します。</p></div></div><div class="export-actions"><button id="save-image" class="button primary">画像として保存 <span>PNG ↓</span></button><button id="copy-text" class="button secondary">結果をテキストでコピー</button><button id="preview" class="text-button">保存用サマリーを確認</button></div><div id="summary-preview" hidden><h3>見積計算結果の確認シート</h3><pre id="summary-text"></pre></div><div id="image-fallback" hidden><p>保存が始まらない場合は、画像を長押しするか、下のリンクから保存してください。</p><a id="image-link" download>PNG画像をダウンロード</a><img id="export-image" alt="見積計算結果の確認シート"></div><div id="copy-fallback" hidden><label for="copy-area">コピーできない場合は、以下を選択してコピーしてください。</label><textarea id="copy-area" readonly rows="14"></textarea></div><p id="notice" role="status" class="notice"></p></section>
 <footer>ESTIMATE <span>計算はブラウザ内で完結 · 保存はあなたの操作で</span></footer>
-</main></body></html>
+</main>
+
+</body></html>
