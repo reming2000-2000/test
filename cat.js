@@ -9,62 +9,79 @@
  const ctx=canvas.getContext('2d');
  if(!ctx){dock.hidden=true;return;}
  const motion=matchMedia('(prefers-reduced-motion: reduce)');
- const C={ink:'#394958',fur:'#edc18d',light:'#ffe2b2',shade:'#ce9a67',pink:'#dd9e96',hat:'#efbb50',hatLight:'#ffe095',paper:'#fffdf5',blue:'#83aaba',green:'#5f927c'};
+ const C={ink:'#454a4c',fur:'#93999c',light:'#fbfaf4',shade:'#727a7d',pink:'#d98f79',hat:'#e6d86b',hatLight:'#f7eb96',paper:'#fffdf5',blue:'#83aaba',green:'#5d9c63'};
  let frame=0,state='ready',resting=false,actionTimer,idleTimer,tick;
  ctx.imageSmoothingEnabled=false;
  const rect=(x,y,w,h,color)=>{ctx.fillStyle=color;ctx.fillRect(x,y,w,h);};
  function shape(points,color){ctx.fillStyle=color;ctx.beginPath();points.forEach(([x,y],i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));ctx.closePath();ctx.fill();}
- function helmet(x=0,y=0){
-  rect(12+x,8+y,18,6,C.ink);rect(15+x,6+y,12,2,C.ink);
-  rect(13+x,9+y,16,4,C.hat);rect(16+x,7+y,10,2,C.hat);
-  rect(18+x,8+y,3,4,C.hatLight);rect(8+x,13+y,26,3,C.ink);rect(9+x,14+y,24,1,C.hat);
+ function helmet(){
+  shape([[9,13],[11,8],[15,5],[25,5],[29,8],[31,13],[34,13],[34,15],[8,15],[8,13]],C.ink);
+  shape([[10,13],[12,9],[16,6],[24,6],[28,9],[30,13]],C.hat);
+  rect(15,7,11,2,C.hatLight);rect(9,13,24,1,C.hat);
+  rect(20,9,2,4,C.green);rect(19,10,4,2,C.green);
  }
  function draw(){
   ctx.clearRect(0,0,40,40);
   const blink=state==='sleep'||(frame%25===24&&state==='ready');
   const bob=!motion.matches&&['copy','round','export'].includes(state)?frame%2:0;
   ctx.save();ctx.translate(0,-bob);
-  // Ground shadow, tail and little work boots.
-  rect(9,36,24,1,'#c7d5df');
+  rect(8,38,25,1,'#c7d5df');
   const tail=motion.matches?0:frame%4<2?0:1;
-  rect(28,26,6,7,C.ink);rect(32,23-tail,3,7,C.ink);rect(29,27,4,5,C.shade);rect(33,24-tail,1,5,C.fur);
-  shape([[13,23],[27,23],[29,27],[29,34],[26,36],[12,36],[11,33],[11,27]],C.ink);
-  rect(13,25,14,9,C.fur);rect(16,26,8,8,C.light);
-  rect(11,34,8,2,C.ink);rect(23,34,7,2,C.ink);rect(13,34,4,1,C.shade);rect(24,34,4,1,C.shade);
-  // Ears and face: all coordinates are on the pixel grid.
-  shape([[9,15],[9,8],[12,8],[17,13],[25,13],[29,8],[32,8],[32,16]],C.ink);
-  rect(10,10,3,6,C.fur);rect(29,10,2,6,C.fur);
-  shape([[11,13],[30,13],[33,17],[33,22],[29,26],[12,26],[8,22],[8,17]],C.ink);
-  shape([[12,14],[29,14],[32,18],[32,21],[28,25],[13,25],[9,21],[9,18]],C.fur);
-  rect(13,17,15,7,C.light);
+  shape([[27,28],[31,29],[35,33-tail],[38,35-tail],[37,37-tail],[33,35],[28,33]],C.ink);
+  shape([[28,29],[31,30],[35,34-tail],[37,35-tail],[36,36-tail],[32,34],[28,32]],C.fur);
+  shape([[14,23],[26,23],[29,27],[29,34],[26,36],[14,35],[11,32],[12,27]],C.ink);
+  rect(14,25,13,9,C.fur);rect(17,26,8,7,C.light);rect(18,33,6,1,C.light);
+  // Bent legs and white paws give the little cat a pointing-check stance.
+  shape([[13,31],[18,32],[16,35],[16,37],[10,38],[8,36],[10,33]],C.ink);
+  rect(12,32,4,2,C.fur);rect(11,34,4,3,C.light);rect(9,36,5,1,C.light);
+  shape([[23,33],[27,33],[27,36],[30,37],[30,39],[24,38],[22,36]],C.ink);
+  rect(24,34,2,3,C.light);rect(25,37,4,1,C.light);
+  shape([[10,14],[10,5],[12,4],[18,11],[24,11],[29,5],[31,6],[32,15]],C.ink);
+  shape([[11,12],[11,7],[13,8],[16,12]],C.light);
+  shape([[27,12],[29,8],[30,8],[31,13]],C.light);
+  shape([[12,12],[29,12],[33,16],[33,21],[29,25],[13,25],[8,21],[8,16]],C.ink);
+  shape([[13,13],[28,13],[32,17],[32,20],[28,24],[14,24],[9,20],[9,17]],C.fur);
+  // White blaze, muzzle and dark whiskers; warm yellow eyes.
+  shape([[20,15],[22,18],[22,20],[26,22],[26,24],[16,24],[15,22],[19,19]],C.light);
   helmet();
   if(blink){rect(14,19,4,1,C.ink);rect(24,19,4,1,C.ink);}
-  else{rect(15,18,2,3,C.ink);rect(25,18,2,3,C.ink);rect(15,18,1,1,C.paper);rect(25,18,1,1,C.paper);}
-  rect(20,21,2,1,C.pink);rect(19,22,1,1,C.ink);rect(22,22,1,1,C.ink);
-  rect(11,21,3,1,C.pink);rect(28,21,3,1,C.pink);
-  if(state==='copy'){
-   rect(25,20,12,15,C.ink);rect(26,21,10,13,C.paper);rect(28,19,6,3,C.ink);rect(29,20,4,1,C.hat);
-   rect(28,27,2,2,C.green);rect(30,29,2,2,C.green);rect(32,25,2,4,C.green);
-   rect(24,29,3,3,C.fur);
-  }else if(state==='round'){
-   rect(28,25,3,10,C.ink);rect(29,26,1,8,C.blue);
-   rect(25,21,9,5,C.ink);rect(26,20,2,4,C.blue);rect(31,20,2,4,C.blue);rect(28,24,3,1,C.blue);
-   rect(26,29,3,3,C.fur);
-  }else if(state==='sleep'){
-   rect(13,27,15,7,C.fur);rect(16,28,11,5,C.light);rect(13,32,12,2,C.shade);
-   rect(32,6,5,1,C.blue);rect(35,7,1,1,C.blue);rect(34,8,1,1,C.blue);rect(33,9,5,1,C.blue);
-  }else if(state!=='reset'&&state!=='error'){
-   rect(15,25,13,11,C.ink);rect(16,26,11,9,'#70929f');rect(17,27,9,3,'#d6e7d8');
-   for(let y=31;y<35;y+=2)for(let x=18;x<26;x+=3)rect(x,y,2,1,C.paper);
-   rect(state==='typing'&&frame%2?17:13,29,4,3,C.fur);rect(26,29,3,3,C.fur);
+  else{
+   rect(14,17,4,4,C.ink);rect(24,17,4,4,C.ink);
+   rect(15,17,3,3,C.hat);rect(25,17,3,3,C.hat);
+   rect(16,17,1,3,C.ink);rect(26,17,1,3,C.ink);
   }
-  if(state==='export'){rect(33,4,2,7,C.hat);rect(30,7,8,2,C.hat);}
-  if(state==='error'){rect(35,18,1,4,C.blue);rect(35,24,1,1,C.blue);}
+  rect(20,21,2,1,C.ink);rect(19,22,1,1,C.ink);rect(22,22,1,1,C.ink);
+  rect(10,21,5,1,C.ink);rect(27,21,5,1,C.ink);
+  rect(18,23,1,1,C.ink);rect(23,23,1,1,C.ink);
+  if(state!=='sleep')rect(20,24,2,1,C.pink);
+  if(state==='copy'){
+   rect(25,23,12,14,C.ink);rect(26,24,10,12,C.paper);rect(28,22,6,3,C.ink);rect(29,23,4,1,C.hat);
+   rect(28,29,2,2,C.green);rect(30,31,2,2,C.green);rect(32,27,2,4,C.green);
+   rect(24,31,3,3,C.light);
+  }else if(state==='round'){
+   rect(29,28,3,10,C.ink);rect(30,29,1,8,C.blue);
+   rect(26,24,9,5,C.ink);rect(27,23,2,4,C.blue);rect(32,23,2,4,C.blue);rect(29,27,3,1,C.blue);
+   rect(27,31,3,3,C.light);
+  }else if(state==='sleep'){
+   rect(13,28,15,7,C.fur);rect(16,29,10,4,C.light);rect(12,34,14,2,C.shade);
+   rect(33,4,5,1,C.blue);rect(36,5,1,1,C.blue);rect(35,6,1,1,C.blue);rect(34,7,5,1,C.blue);
+  }else if(state==='typing'){
+   rect(15,26,13,11,C.ink);rect(16,27,11,9,'#70929f');rect(17,28,9,3,'#d6e7d8');
+   for(let y=32;y<36;y+=2)for(let x=18;x<26;x+=3)rect(x,y,2,1,C.paper);
+   rect(frame%2&&!motion.matches?17:13,30,4,3,C.light);rect(26,30,3,3,C.light);
+  }else{
+   // Raised left paw points outwards. This pose is visible even while idle.
+   shape([[14,26],[10,26],[8,23],[5,22],[2,22],[1,24],[5,25],[6,28],[10,30],[14,29]],C.ink);
+   rect(10,27,4,2,C.fur);rect(7,25,3,3,C.fur);rect(3,23,4,1,C.light);rect(6,24,2,2,C.light);
+   rect(28,28,4,4,C.ink);rect(29,29,2,2,C.light);
+  }
+  if(state==='export'){rect(35,9,1,5,C.green);rect(33,11,5,1,C.green);}
+  if(state==='error'){rect(36,18,1,4,C.blue);rect(36,24,1,1,C.blue);}
   ctx.restore();
  }
  function pose(type){
   state=type;dock.dataset.state=type;
-  const words={ready:'',typing:'計算中だにゃ',copy:'コピーできたにゃ',round:'端数、整ったにゃ',reset:'また一緒につくろう',error:'入力を見てみよう',export:'できあがり！',sleep:'すやすや…'};
+  const words={ready:'',typing:'計算中だにゃ',copy:'コピー、ヨシ！',round:'端数、ヨシ！',reset:'また一緒につくろう',error:'入力を見てみよう',export:'できあがり！',sleep:'すやすや…'};
   message.textContent=words[type]||'';message.hidden=!words[type];draw();
  }
  function idle(){clearTimeout(idleTimer);idleTimer=setTimeout(()=>{if(!resting)pose('sleep');},30000);}
