@@ -25,13 +25,13 @@ with sync_playwright() as p:
  network_before=len(requests)
  check_copy('parts','amount','150,000')
  check_copy('materials','basis','部品代×5％')
- fill('adopt-materials','10000');check_copy('materials','amount','10,000');check_copy('materials','basis','部品代×5％+2,500')
- fill('adopt-materials','5000');check_copy('materials','basis','部品代×5％-2,500')
+ fill('adopt-materials','10000');check_copy('materials','amount','10,000');check_copy('materials','basis','部品代×5％+2,500（＝部品代6.7％）')
+ fill('adopt-materials','5000');check_copy('materials','basis','部品代×5％-2,500（＝部品代3.3％）')
  fill('adopt-materials','7500');check_copy('materials','basis','部品代×5％')
  fill('adopt-materials','');check_copy('materials','basis','部品代×5％')
- fill('adopt-materials','0');check_copy('materials','amount','0');check_copy('materials','basis','部品代×5％-7,500')
+ fill('adopt-materials','0');check_copy('materials','amount','0');check_copy('materials','basis','部品代×5％-7,500（＝部品代0％）')
  fill('adopt-materials','10000')
- page.locator('details.settings').evaluate('(el)=>el.open=true');fill('materialsRate','7');check_copy('materials','basis','部品代×7％-500')
+ page.locator('details.settings').evaluate('(el)=>el.open=true');fill('materialsRate','7');check_copy('materials','basis','部品代×7％-500（＝部品代6.7％）')
  fill('materialsRate','5');page.locator('details.settings').evaluate('(el)=>el.open=false')
  fill('adopt-labor','100000');check_copy('labor','amount','100,000');check_copy('labor','basis','1.5人×58,000+13,000')
  check_copy('removal','basis','部品代×3％');check_copy('protection','basis','部品代×2％')
@@ -41,8 +41,12 @@ with sync_playwright() as p:
  for width in [1440,768,390,320]:
   page.set_viewport_size({'width':width,'height':1000})
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
-  check_copy('materials','basis','部品代×5％+2,500')
+  check_copy('materials','basis','部品代×5％+2,500（＝部品代6.7％）')
   if width in [1440,390]:page.locator('#row-materials').screenshot(path=str(ART/f'copy-row-{width}.png'))
+ # Requested example: the appended ratio is copied to the actual clipboard.
+ fill('parts','288500');fill('adopt-protection','12694')
+ check_copy('protection','basis','部品代×2％+6,924（＝部品代4.4％）')
+ fill('parts','150000');fill('adopt-protection','')
  # Overhead uses the same row controls and must not be included in its own subtotal.
  page.locator('details.settings').evaluate('(el)=>el.open=true')
  for id in ['materialsRate','removalRate','protectionRate']:fill(id,'0')
@@ -87,7 +91,7 @@ with sync_playwright() as p:
  page.evaluate("Object.defineProperty(navigator,'clipboard',{value:{writeText:()=>Promise.reject(new Error('NotAllowedError'))},configurable:true})")
  page.locator('#copy-basis-materials').click()
  expect(page.locator('#row-copy-area-materials')).to_be_visible()
- assert page.locator('#row-copy-area-materials').input_value()=='部品代×5％+2,500'
+ assert page.locator('#row-copy-area-materials').input_value()=='部品代×5％+2,500（＝部品代6.7％）'
  assert page.locator('#copy-basis-materials').is_enabled()
  assert len(requests)==network_before,requests[network_before:]
  assert not errors,errors

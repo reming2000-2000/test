@@ -30,12 +30,12 @@ console.log('PASS: 共通作業人員・1.5人・小数3桁・売価/原価・�
 // Copy strings retain current rates and exact signed adjustments, without currency units.
 const copyInput={...p,parts:v(150000),workers:v(1.5)};
 const copied=(id,adopted={},input=copyInput)=>{const out=E.calculate(input,adopted);return E.copyBasis(input,out.rows.find(r=>r.id===id));};
-assert.equal(copied('materials',{materials:v(10000)}),'部品代×5％+2,500');
-assert.equal(copied('materials',{materials:v(5000)}),'部品代×5％-2,500');
+assert.equal(copied('materials',{materials:v(10000)}),'部品代×5％+2,500（＝部品代6.7％）');
+assert.equal(copied('materials',{materials:v(5000)}),'部品代×5％-2,500（＝部品代3.3％）');
 assert.equal(copied('materials'),'部品代×5％');
 assert.equal(copied('materials',{materials:v(7500)}),'部品代×5％');
-assert.equal(copied('materials',{materials:0n}),'部品代×5％-7,500');
-assert.equal(copied('materials',{materials:v(10000)},{...copyInput,materialsRate:v(7)}),'部品代×7％-500');
+assert.equal(copied('materials',{materials:0n}),'部品代×5％-7,500（＝部品代0％）');
+assert.equal(copied('materials',{materials:v(10000)},{...copyInput,materialsRate:v(7)}),'部品代×7％-500（＝部品代6.7％）');
 assert.equal(copied('materials',{materials:v(2500)},{...copyInput,parts:0n}),'部品代×5％+2,500');
 assert.equal(copied('labor',{labor:v(100000)}),'1.5人×58,000+13,000');
 assert.equal(copied('shipping',{shipping:v(20000)}),'1.5人×4,000+20,000-6,000');
@@ -81,3 +81,7 @@ const zeroPartsRounded=E.roundedAdoptions(roundingInput,0n);
 const zeroPartsResult=E.calculate(roundingInput,{...zeroPartsRounded,parts:0n});
 assert.equal(zeroPartsResult.subtotal,v(109900));assert.equal(zeroPartsResult.overhead,v(10900));
 console.log('PASS: 部品代は一括対象外・手動採用額/採用0を保持・保持した部品代から諸経費再計算');
+
+assert.equal(copied('protection',{protection:v(12694)},{...copyInput,parts:v(288500)}),'部品代×2％+6,924（＝部品代4.4％）');
+assert.equal(copied('removal',{removal:v(15000)}),'部品代×3％+10,500（＝部品代10％）');
+console.log('PASS: 部品代比のコピー注記・小数1桁丸め・整数比率・部品代0・無補正');

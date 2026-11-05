@@ -31,7 +31,9 @@
   function copyBasis(p,row) {
     const bases={parts:'基本入力の部品代',labor:`${format(p.workers)}人×${format(p.laborPrice)}`,materials:`部品代×${format(p.materialsRate)}％`,removal:`部品代×${format(p.removalRate)}％`,shipping:`${format(p.workers)}人×${format(p.workerShipping)}+${format(p.shipping)}`,protection:`部品代×${format(p.protectionRate)}％`,overhead:`小計×${format(p.overheadRate)}％`};
     const adjustment=row.diff===0n?'':(row.diff>0n?'+':'-')+format(row.diff<0n?-row.diff:row.diff);
-    return bases[row.id]+adjustment;
+    const showPartsRatio=['materials','removal','protection'].includes(row.id)&&row.diff!==0n&&p.parts>0n;
+    const partsRatio=showPartsRatio?'（＝部品代'+ratio(row.booked,p.parts,1,false).replace(/\.0％$/,'％')+'）':'';
+    return bases[row.id]+adjustment+partsRatio;
   }
   function calculate(input,adopted={}) {
     const p=input, standard={parts:p.parts,materials:percent(p.parts,p.materialsRate),removal:percent(p.parts,p.removalRate),protection:percent(p.parts,p.protectionRate),labor:mul(p.workers,p.laborPrice),shipping:mul(p.workers,p.workerShipping)+p.shipping};
