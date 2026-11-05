@@ -12,6 +12,7 @@ with sync_playwright() as p:
  page.clock.install()
  page.goto('http://127.0.0.1:8000');page.wait_for_load_state('networkidle')
  cat=page.locator('#pixel-companion')
+ expect(cat).to_have_attribute('data-sprite-loaded','true')
  assert page.locator('#cat-canvas').is_visible()
  def fill(id,v):
   page.locator('#'+id).focus();page.locator('#'+id).fill(v)
@@ -24,6 +25,7 @@ with sync_playwright() as p:
  assert page.evaluate('navigator.clipboard.readText()')=='850,000'
  page.screenshot(path=str(ART/'cat-desktop.png'),full_page=False)
  page.locator('#pixel-companion').screenshot(path=str(ART/'cat-closeup.png'))
+ page.locator('#cat-canvas').screenshot(path=str(ART/'cat-new-copy.png'))
  page.locator('#round-standard').click();expect(cat).to_have_attribute('data-state','round')
  assert page.locator('#booked-parts').inner_text()=='850,000円'
  assert page.locator('#grand-total').inner_text()=='1,166,994円'
