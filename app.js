@@ -63,8 +63,9 @@ function update(){
  $('welfare-basis').textContent=`採用交換作業費 × ${E.format(p.welfareRate)}％・1円未満切り捨て`;
  $('grand-total').textContent=E.yen(result.total);$('standard-total').textContent=E.yen(result.standardTotal);$('current-total').textContent=E.yen(result.total);$('total-diff').textContent=E.signed(result.diff);diffClass($('total-diff'),result.diff);$('total-rate').textContent=E.ratio(result.diff,result.standardTotal,2);
  renderChanges();$('validation-banner').hidden=!invalid;
- for(const id of ['save-image','copy-text','preview'])$(id).disabled=invalid;
+ for(const id of ['save-image','copy-text','preview','round-standard'])$(id).disabled=invalid;
  document.querySelectorAll('[data-copy]').forEach(button=>button.disabled=invalid||copyingButtons.has(button));
+ $('round-notice').textContent='';
  $('summary-preview').hidden=true;$('image-fallback').hidden=true;$('copy-fallback').hidden=true;$('notice').textContent='';
  if(imageUrl){URL.revokeObjectURL(imageUrl);imageUrl=null;$('export-image').removeAttribute('src');}
 }
@@ -109,6 +110,16 @@ $('estimate-form').addEventListener('focusin',e=>{
  if(start!==null && end!==null)el.setSelectionRange(before.slice(0,start).replaceAll(',','').length,before.slice(0,end).replaceAll(',','').length);
 });
 $('estimate-form').addEventListener('focusout',e=>{const el=e.target;if(!el.dataset.kind)return;const r=E.parse(el.value,el.dataset.kind,el.dataset.optional==='true');if(!r.error && el.value.trim() && r.value!==null)el.value=E.format(r.value);});
+$('round-standard').addEventListener('click',()=>{
+ if(invalid)return;
+ const adopted=E.roundedAdoptions(state.p);
+ if(Object.values(adopted).some(value=>value>1000000000000n*E.SCALE)){
+  $('round-notice').textContent='計算結果が採用額の入力上限（1兆円）を超えるため、一括入力できません。基本入力・標準設定を確認してください。';return;
+ }
+ for(const [id,value] of Object.entries(adopted))$('adopt-'+id).value=E.format(value);
+ update();
+ $('round-notice').textContent='標準額の端数を調整して、採用額に一括入力しました。';
+});
 $('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});update();$('parts').focus();});
 function stamp(date=new Date()){
  const f=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});const p=Object.fromEntries(f.formatToParts(date).map(v=>[v.type,v.value]));
@@ -119,8 +130,8 @@ function summary(time){
  sections.push(['基本条件',basic.map(([id,label,unit])=>`${label}：${E.format(s.p[id])}${unit}`)]);
  sections.push(['標準設定',settings.map(([id,label,unit])=>`${label}：${E.format(s.p[id])}${unit}`)]);
  sections.push(['見積内訳',[...s.rows.map(r=>`${r.label}：${E.yen(r.booked)}`),`小計（諸経費・法定福利費を除く）：${E.yen(s.subtotal)}`,`法定福利費（採用交換作業費 × ${E.format(s.p.welfareRate)}％・切り捨て）：${E.yen(s.welfare)}`,`見積金額（税別）：${E.yen(s.total)}`]]);
- sections.push(['交換作業費の売価・原価',[basis(s.p,s).labor,`見積計上額：${E.yen(s.rows.find(r=>r.id==='labor').booked)}`,`原価（参考）：${E.format(s.p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(s.laborCost)}`, '原価は確認用の表示です。見積総額には加算しません。']]);
- sections.push(['法定福利費の原価',[`売価（見積計上額）：${E.yen(s.welfare)}`,`原価（参考）：${E.yen(s.welfare)} × 0.66 ＝ ${E.yen(s.welfareCost)}`, '原価は確認用の表示です。見積総額には加算しません。']]);
+ sections.push(['交換作業費の売価・原価',[basis(s.p,s).labor,`見積計上額：${E.yen(s.rows.find(r=>r.id==='labor').booked)}`,`原価（参考）：${E.format(s.p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(s.laborCost)}`, '原価は1円未満切り捨て。確認用の表示で、見積総額には加算しません。']]);
+ sections.push(['法定福利費の原価',[`売価（見積計上額）：${E.yen(s.welfare)}`,`原価（参考）：${E.yen(s.welfare)} × 0.66 ＝ ${E.yen(s.welfareCost)}`, '原価は1円未満切り捨て。確認用の表示で、見積総額には加算しません。']]);
  sections.push(['標準との比較',[`標準見積総額：${E.yen(s.standardTotal)}`,`現在の採用見積総額：${E.yen(s.total)}`,`総補正額：${E.signed(s.diff)}`,`標準見積に対する増減率：${E.ratio(s.diff,s.standardTotal,2)}`]]);
  const changes=s.rows.filter(r=>r.diff!==0n);
  sections.push(['標準から変更した項目',changes.length?changes.flatMap(r=>[r.label,...changeLines(r),'']):['標準設定からの変更はありません']]);
@@ -147,7 +158,7 @@ function canvasSummary(out,time){
  ctx.fillStyle='#eaf3fa';ctx.fillRect(margin,181,width-2*margin,86);ctx.fillStyle='#204c6d';ctx.font='bold 25px system-ui, sans-serif';const total='見積金額（税別） '+E.yen(state.total);let fontSize=25;while(ctx.measureText(total).width>width-2*margin-40){ctx.font=`bold ${--fontSize}px system-ui, sans-serif`;}ctx.fillText(total,margin+20,234);
  let y=300;
  for(const b of blocks){ctx.fillStyle='#eef3f7';ctx.fillRect(margin,y,width-2*margin,48);ctx.fillStyle='#355976';ctx.font='bold 24px system-ui, sans-serif';ctx.fillText(b.title,margin+16,y+33);y+=74;ctx.font='24px system-ui, sans-serif';ctx.fillStyle='#263a4d';for(const line of b.lines){ctx.fillText(line,margin+16,y+24);y+=lineHeight;}y+=18;}
- ctx.fillStyle='#8192a0';ctx.font='18px system-ui, sans-serif';ctx.fillText('税別 / 法定福利費のみ1円未満切り捨て / 入力内容の自動保存なし',margin,height-35);
+ ctx.fillStyle='#8192a0';ctx.font='18px system-ui, sans-serif';ctx.fillText('税別 / 法定福利費・原価は1円未満切り捨て / 入力内容の自動保存なし',margin,height-35);
  return canvas;
 }
 $('save-image').addEventListener('click',async()=>{

@@ -64,3 +64,9 @@
 
 #row-overhead{border-top:2px solid #dbe5ed}
 #welfare-cost{display:block;margin-top:5px;overflow-wrap:anywhere}
+
+.rounding-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 24px;margin:0 0 24px;padding:0 4px}
+.rounding-toolbar p{font-size:11px;color:var(--muted);margin:7px 0 0;line-height:1.7}
+.rounding-toolbar #round-notice{color:#315f7e;max-width:520px}
+.rounding-toolbar .button{background:#edf4f9;border-color:#c5d8e7;color:#315f7e}
+@media(max-width:760px){.rounding-toolbar{padding:0;margin-bottom:22px}.rounding-toolbar>div{width:100%}.rounding-toolbar .button{width:100%}.rounding-toolbar p{font-size:10px}}

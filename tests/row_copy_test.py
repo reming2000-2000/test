@@ -67,11 +67,11 @@ with sync_playwright() as p:
  check_copy('overhead','basis','小計×10％-75')
  # Welfare reference cost follows labor adoption, without affecting totals.
  fill('workers','1.5')
- assert page.locator('#welfare-cost').inner_text()=='原価（参考）：14,194円 × 0.66 ＝ 9,368.04円'
+ assert page.locator('#welfare-cost').inner_text()=='原価（参考）：14,194円 × 0.66 ＝ 9,368円'
  fill('adopt-labor','100000')
- assert page.locator('#welfare-cost').inner_text()=='原価（参考）：16,315円 × 0.66 ＝ 10,767.9円'
+ assert page.locator('#welfare-cost').inner_text()=='原価（参考）：16,315円 × 0.66 ＝ 10,767円'
  page.locator('#preview').click()
- assert '原価（参考）：16,315円 × 0.66 ＝ 10,767.9円' in page.locator('#summary-text').inner_text()
+ assert '原価（参考）：16,315円 × 0.66 ＝ 10,767円' in page.locator('#summary-text').inner_text()
  for width in [1440,390,320]:
   page.set_viewport_size({'width':width,'height':1000})
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width

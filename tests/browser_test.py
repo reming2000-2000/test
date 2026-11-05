@@ -66,10 +66,10 @@ with sync_playwright() as p:
  assert page.locator('#grand-total').inner_text()=='1,166,994円'
  assert page.locator('#basis-labor').inner_text()=='売価：1.5人 × 58,000円 ＝ 87,000円'
  assert page.locator('#labor-cost').inner_text()=='原価（参考）：1.5人 × 36,000円 ＝ 54,000円'
- assert page.locator('#welfare-cost').inner_text()=='原価（参考）：14,194円 × 0.66 ＝ 9,368.04円'
+ assert page.locator('#welfare-cost').inner_text()=='原価（参考）：14,194円 × 0.66 ＝ 9,368円'
  page.locator('#preview').click()
  text=page.locator('#summary-text').inner_text()
- for expected in ['作業人員：1.5人','原価（参考）：1.5人 × 36,000円 ＝ 54,000円','見積計上額：87,000円','原価（参考）：14,194円 × 0.66 ＝ 9,368.04円']:
+ for expected in ['作業人員：1.5人','原価（参考）：1.5人 × 36,000円 ＝ 54,000円','見積計上額：87,000円','原価（参考）：14,194円 × 0.66 ＝ 9,368円']:
   assert expected in text
  assert '交換作業人工' not in text and '作業員人数' not in text
  start=len(requests)
@@ -107,6 +107,39 @@ with sync_playwright() as p:
  assert not page.locator('#adjustment-materials').is_visible()
  page.locator('#reset').click()
  assert page.locator('#cost-rows details[open]').count()==0
+ # Batch rounding button sits directly below settings and rounds all adopted values.
+ assert page.locator('details.settings + .rounding-toolbar #round-standard').count()==1
+ for before,after in [('1552110','1,552,000'),('155211','155,200'),('15521','15,500'),('1550','1,500')]:
+  fill(page.locator('#parts'),before);page.locator('#round-standard').click()
+  assert page.locator('#adopt-parts').input_value()==after
+ fill(page.locator('#parts'),'155211');fill(page.locator('#workers'),'1.501');fill(page.locator('#shipping'),'1550')
+ fill(page.locator('#adopt-parts'),'7');fill(page.locator('#memo-parts'),'端数調整のメモ')
+ page.locator('#round-standard').click()
+ assert page.locator('#adopt-parts').input_value()=='155,200'
+ assert page.locator('#adopt-overhead').input_value()=='26,500'
+ assert page.locator('#subtotal').inner_text()=='265,100円'
+ assert page.locator('#grand-total').inner_text()=='305,794円'
+ assert page.locator('#memo-parts').input_value()=='端数調整のメモ'
+ assert page.locator('#welfare-cost').inner_text()=='原価（参考）：14,194円 × 0.66 ＝ 9,368円'
+ assert '一括入力しました' in page.locator('#round-notice').inner_text()
+ first_values=page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')
+ page.locator('#round-standard').click()
+ assert page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')==first_values
+ page.locator('#preview').click()
+ for expected in ['部品代：155,200円','端数調整のメモ','原価（参考）：14,194円 × 0.66 ＝ 9,368円']:
+  assert expected in page.locator('#summary-text').inner_text()
+ with page.expect_download() as info:page.locator('#save-image').click()
+ info.value.save_as(ART/'rounded-result.png')
+ fill(page.locator('#parts'),'-1');assert page.locator('#round-standard').is_disabled()
+ fill(page.locator('#parts'),'155211')
+ page.locator('details.settings').evaluate('(el)=>el.open=true')
+ fill(page.locator('#laborPrice'),'1000000000000');fill(page.locator('#workers'),'1000000')
+ page.locator('#round-standard').click()
+ assert '上限' in page.locator('#round-notice').inner_text()
+ assert page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')==first_values
+ page.locator('#reset').click()
+ assert page.locator('#adopt-overhead').input_value()==''
+ assert page.locator('#round-notice').inner_text()==''
  # Clipboard fallback when the API is unavailable.
  page.evaluate("Object.defineProperty(navigator, 'clipboard', {value: undefined, configurable: true})")
  page.locator('#copy-text').click();assert page.locator('#copy-fallback').is_visible();assert '出力日時' in page.locator('#copy-area').input_value()

@@ -44,8 +44,18 @@
     rows.push(overheadRow);
     const overhead=overheadRow.booked, welfare=percent(rows.find(r=>r.id==='labor').booked,p.welfareRate)/SCALE*SCALE;
     const total=subtotal+overhead+welfare, standardTotal=standardSubtotal+percent(standardSubtotal,p.overheadRate)+percent(standard.labor,p.welfareRate)/SCALE*SCALE;
-    return {rows,subtotal,overhead,welfare,total,standardTotal,diff:total-standardTotal,laborCost:mul(p.workers,laborCostPrice),welfareCost:mul(welfare,decimal('0.66'))};
+    return {rows,subtotal,overhead,welfare,total,standardTotal,diff:total-standardTotal,laborCost:mul(p.workers,laborCostPrice)/SCALE*SCALE,welfareCost:mul(welfare,decimal('0.66'))/SCALE*SCALE};
   }
-  const api={SCALE,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis};
+  function roundStandardAmount(value) {
+    const unit=(value>=1000000n*SCALE?1000n:100n)*SCALE;
+    return value/unit*unit;
+  }
+  function roundedAdoptions(input) {
+    const adopted=Object.fromEntries(calculate(input).rows.filter(row=>row.id!=='overhead').map(row=>[row.id,roundStandardAmount(row.standard)]));
+    // Round overhead after its base has been updated by rounding the six direct costs.
+    adopted.overhead=roundStandardAmount(calculate(input,adopted).rows.find(row=>row.id==='overhead').standard);
+    return adopted;
+  }
+  const api={SCALE,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions};
   if(typeof module!=='undefined') module.exports=api; else root.Estimate=api;
 })(typeof window!=='undefined'?window:globalThis);
