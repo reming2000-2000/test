@@ -4,7 +4,7 @@
   const SCALE = 10n ** 12n;
   const defaults = {parts:'0',workers:'0',shipping:'0',materialsRate:'5',removalRate:'3',protectionRate:'2',laborPrice:'58000',workerShipping:'4000',overheadRate:'10',welfareRate:'16.315'};
   const laborCostPrice = 36000n * SCALE;
-  const items = [['parts','部品代'],['labor','交換作業費'],['materials','消耗資材費'],['removal','撤去品引取費'],['shipping','部品送料・運搬交通費'],['protection','養生・安全対策費']];
+  const items = [['parts','部品代'],['labor','交換作業費'],['materials','消耗資材費'],['removal','撤去品引取費'],['shipping','部品送料・運搬交通費'],['protection','養生・安全対策費'],['overhead','諸経費']];
   function decimal(s) { const [a,b=''] = String(s).split('.'); return BigInt(a || '0')*SCALE+BigInt(b.padEnd(12,'0')); }
   const mul=(a,b)=>a*b/SCALE, percent=(a,b)=>a*b/(100n*SCALE);
   function parse(raw, kind='money', optional=false) {
@@ -29,17 +29,22 @@
     return (signedValue?(diff>0n?'＋':diff<0n?'－':''):'')+(scaled/power).toString()+'.'+(scaled%power).toString().padStart(digits,'0')+'％';
   }
   function copyBasis(p,row) {
-    const bases={parts:'基本入力の部品代',labor:`${format(p.workers)}人×${format(p.laborPrice)}`,materials:`部品代×${format(p.materialsRate)}％`,removal:`部品代×${format(p.removalRate)}％`,shipping:`${format(p.workers)}人×${format(p.workerShipping)}+${format(p.shipping)}`,protection:`部品代×${format(p.protectionRate)}％`};
+    const bases={parts:'基本入力の部品代',labor:`${format(p.workers)}人×${format(p.laborPrice)}`,materials:`部品代×${format(p.materialsRate)}％`,removal:`部品代×${format(p.removalRate)}％`,shipping:`${format(p.workers)}人×${format(p.workerShipping)}+${format(p.shipping)}`,protection:`部品代×${format(p.protectionRate)}％`,overhead:`小計×${format(p.overheadRate)}％`};
     const adjustment=row.diff===0n?'':(row.diff>0n?'+':'-')+format(row.diff<0n?-row.diff:row.diff);
     return bases[row.id]+adjustment;
   }
   function calculate(input,adopted={}) {
     const p=input, standard={parts:p.parts,materials:percent(p.parts,p.materialsRate),removal:percent(p.parts,p.removalRate),protection:percent(p.parts,p.protectionRate),labor:mul(p.workers,p.laborPrice),shipping:mul(p.workers,p.workerShipping)+p.shipping};
-    const rows=items.map(([id,label])=>{const adoption=adopted[id]??null;const booked=adoption??standard[id];return {id,label,standard:standard[id],adopted:adoption,booked,diff:booked-standard[id]};});
+    function makeRow([id,label]) {const adoption=adopted[id]??null;const booked=adoption??standard[id];return {id,label,standard:standard[id],adopted:adoption,booked,diff:booked-standard[id]};}
+    // The overhead base comprises only the six direct costs, even when overhead is overridden.
+    const rows=items.filter(([id])=>id!=='overhead').map(makeRow);
     const subtotal=rows.reduce((a,r)=>a+r.booked,0n), standardSubtotal=rows.reduce((a,r)=>a+r.standard,0n);
-    const overhead=percent(subtotal,p.overheadRate), welfare=percent(rows.find(r=>r.id==='labor').booked,p.welfareRate)/SCALE*SCALE;
+    standard.overhead=percent(subtotal,p.overheadRate);
+    const overheadRow=makeRow(items.find(([id])=>id==='overhead'));
+    rows.push(overheadRow);
+    const overhead=overheadRow.booked, welfare=percent(rows.find(r=>r.id==='labor').booked,p.welfareRate)/SCALE*SCALE;
     const total=subtotal+overhead+welfare, standardTotal=standardSubtotal+percent(standardSubtotal,p.overheadRate)+percent(standard.labor,p.welfareRate)/SCALE*SCALE;
-    return {rows,subtotal,overhead,welfare,total,standardTotal,diff:total-standardTotal,laborCost:mul(p.workers,laborCostPrice)};
+    return {rows,subtotal,overhead,welfare,total,standardTotal,diff:total-standardTotal,laborCost:mul(p.workers,laborCostPrice),welfareCost:mul(welfare,decimal('0.66'))};
   }
   const api={SCALE,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis};
   if(typeof module!=='undefined') module.exports=api; else root.Estimate=api;

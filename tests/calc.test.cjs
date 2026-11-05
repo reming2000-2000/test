@@ -3,8 +3,8 @@ const E=require('../calc.js');
 const v=n=>E.decimal(String(n));
 const p=Object.fromEntries(Object.entries({...E.defaults,parts:'850000',workers:'6',shipping:'20000'}).map(([k,n])=>[k,v(n)]));
 let s=E.calculate(p);
-assert.deepEqual(s.rows.map(r=>r.label),['部品代','交換作業費','消耗資材費','撤去品引取費','部品送料・運搬交通費','養生・安全対策費']);
-assert.deepEqual(s.rows.map(r=>E.format(r.standard)),['850,000','348,000','42,500','25,500','44,000','17,000']);
+assert.deepEqual(s.rows.map(r=>r.label),['部品代','交換作業費','消耗資材費','撤去品引取費','部品送料・運搬交通費','養生・安全対策費','諸経費']);
+assert.deepEqual(s.rows.map(r=>E.format(r.standard)),['850,000','348,000','42,500','25,500','44,000','17,000','132,700']);
 for(const [k,n] of Object.entries({subtotal:1327000,overhead:132700,welfare:56776,total:1516476,laborCost:216000}))assert.equal(s[k],v(n),k);
 s=E.calculate(p,{materials:v(70000)});
 for(const [k,n] of Object.entries({subtotal:1354500,overhead:135450,welfare:56776,total:1546726,diff:30250}))assert.equal(s[k],v(n),k);
@@ -42,3 +42,21 @@ assert.equal(copied('shipping',{shipping:v(20000)}),'1.5人×4,000+20,000-6,000'
 assert.equal(copied('parts',{parts:v(150100)}),'基本入力の部品代+100');
 assert.equal(copied('removal'),'部品代×3％');assert.equal(copied('protection'),'部品代×2％');
 console.log('PASS: 転記用算定根拠の増額・減額・同額・未採用・採用0・率変更・基準0・全6費目');
+
+// Rounded adopted overhead is independent of its own base and is added exactly once.
+const overheadInput={...p,parts:v(500000),workers:0n,shipping:v(57740),materialsRate:0n,removalRate:0n,protectionRate:0n};
+let adjusted=E.calculate(overheadInput,{overhead:v(55700)});
+assert.equal(adjusted.subtotal,v(557740));assert.equal(adjusted.overhead,v(55700));
+assert.equal(adjusted.rows.find(r=>r.id==='overhead').standard,v(55774));
+assert.equal(adjusted.total,v(613440));assert.equal(adjusted.standardTotal,v(613514));assert.equal(adjusted.diff,v(-74));
+assert.equal(E.copyBasis(overheadInput,adjusted.rows.find(r=>r.id==='overhead')),'小計×10％-74');
+assert.equal(E.calculate(overheadInput,{overhead:0n}).total,v(557740));
+assert.equal(E.calculate(overheadInput).total,v(613514));
+adjusted=E.calculate({...overheadInput,shipping:v(57750)},{overhead:v(55700)});
+assert.equal(adjusted.overhead,v(55700));assert.equal(adjusted.subtotal,v(557750));assert.equal(adjusted.total,v(613450));
+assert.equal(adjusted.rows.find(r=>r.id==='overhead').diff,v(-75));
+assert.equal(E.calculate(p).welfareCost,v(37472.16));
+assert.equal(E.calculate({...p,workers:v(1.5)}).welfareCost,v(9368.04));
+assert.equal(E.calculate(p,{labor:v(100000)}).welfareCost,v(10767.9));
+assert.equal(E.calculate({...p,workers:0n}).welfareCost,0n);
+console.log('PASS: 諸経費上書き・空欄・0・小計除外・二重計上なし・標準比較・福利原価0.66');

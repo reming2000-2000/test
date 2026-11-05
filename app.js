@@ -33,7 +33,7 @@ let state, invalid=false, imageUrl;
 const copyingButtons=new Set();
 const copyFeedbackTimers=new Map();
 function read(input){const result=E.parse(input.value,input.dataset.kind,input.dataset.optional==='true');input.setAttribute('aria-invalid',String(!!result.error));$(input.id+'-error').textContent=result.error; if(result.error)invalid=true;return result.value;}
-function basis(p,result){return {parts:'基本入力の部品代',materials:`部品代 × ${E.format(p.materialsRate)}％`,removal:`部品代 × ${E.format(p.removalRate)}％`,protection:`部品代 × ${E.format(p.protectionRate)}％`,labor:`売価：${E.format(p.workers)}人 × ${E.yen(p.laborPrice)} ＝ ${E.yen(result.rows.find(r=>r.id==='labor').standard)}`,shipping:`${E.format(p.workers)}人 × ${E.yen(p.workerShipping)} ＋ ${E.yen(p.shipping)}`};}
+function basis(p,result){return {overhead:`小計 × ${E.format(p.overheadRate)}％`,parts:'基本入力の部品代',materials:`部品代 × ${E.format(p.materialsRate)}％`,removal:`部品代 × ${E.format(p.removalRate)}％`,protection:`部品代 × ${E.format(p.protectionRate)}％`,labor:`売価：${E.format(p.workers)}人 × ${E.yen(p.laborPrice)} ＝ ${E.yen(result.rows.find(r=>r.id==='labor').standard)}`,shipping:`${E.format(p.workers)}人 × ${E.yen(p.workerShipping)} ＋ ${E.yen(p.shipping)}`};}
 function diffClass(node,value){node.classList.toggle('increase',value>0n);node.classList.toggle('decrease',value<0n);}
 function update(){
  invalid=false;const p={},adopted={},memos={};
@@ -58,8 +58,8 @@ function update(){
   $('row-copy-feedback-'+r.id).replaceChildren();
  }
  $('labor-cost').textContent=`原価（参考）：${E.format(p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(result.laborCost)}`;
- for(const id of ['subtotal','overhead','welfare'])$(id).textContent=E.yen(result[id]);
- $('overhead-basis').textContent=`採用小計 × ${E.format(p.overheadRate)}％`;
+ for(const id of ['subtotal','welfare'])$(id).textContent=E.yen(result[id]);
+ $('welfare-cost').textContent=`原価（参考）：${E.yen(result.welfare)} × 0.66 ＝ ${E.yen(result.welfareCost)}`;
  $('welfare-basis').textContent=`採用交換作業費 × ${E.format(p.welfareRate)}％・1円未満切り捨て`;
  $('grand-total').textContent=E.yen(result.total);$('standard-total').textContent=E.yen(result.standardTotal);$('current-total').textContent=E.yen(result.total);$('total-diff').textContent=E.signed(result.diff);diffClass($('total-diff'),result.diff);$('total-rate').textContent=E.ratio(result.diff,result.standardTotal,2);
  renderChanges();$('validation-banner').hidden=!invalid;
@@ -118,8 +118,9 @@ function summary(time){
  const s=state, sections=[];
  sections.push(['基本条件',basic.map(([id,label,unit])=>`${label}：${E.format(s.p[id])}${unit}`)]);
  sections.push(['標準設定',settings.map(([id,label,unit])=>`${label}：${E.format(s.p[id])}${unit}`)]);
- sections.push(['見積内訳',[...s.rows.map(r=>`${r.label}：${E.yen(r.booked)}`),`小計（諸経費・法定福利費を除く）：${E.yen(s.subtotal)}`,`諸経費（採用小計 × ${E.format(s.p.overheadRate)}％）：${E.yen(s.overhead)}`,`法定福利費（採用交換作業費 × ${E.format(s.p.welfareRate)}％・切り捨て）：${E.yen(s.welfare)}`,`見積金額（税別）：${E.yen(s.total)}`]]);
+ sections.push(['見積内訳',[...s.rows.map(r=>`${r.label}：${E.yen(r.booked)}`),`小計（諸経費・法定福利費を除く）：${E.yen(s.subtotal)}`,`法定福利費（採用交換作業費 × ${E.format(s.p.welfareRate)}％・切り捨て）：${E.yen(s.welfare)}`,`見積金額（税別）：${E.yen(s.total)}`]]);
  sections.push(['交換作業費の売価・原価',[basis(s.p,s).labor,`見積計上額：${E.yen(s.rows.find(r=>r.id==='labor').booked)}`,`原価（参考）：${E.format(s.p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(s.laborCost)}`, '原価は確認用の表示です。見積総額には加算しません。']]);
+ sections.push(['法定福利費の原価',[`売価（見積計上額）：${E.yen(s.welfare)}`,`原価（参考）：${E.yen(s.welfare)} × 0.66 ＝ ${E.yen(s.welfareCost)}`, '原価は確認用の表示です。見積総額には加算しません。']]);
  sections.push(['標準との比較',[`標準見積総額：${E.yen(s.standardTotal)}`,`現在の採用見積総額：${E.yen(s.total)}`,`総補正額：${E.signed(s.diff)}`,`標準見積に対する増減率：${E.ratio(s.diff,s.standardTotal,2)}`]]);
  const changes=s.rows.filter(r=>r.diff!==0n);
  sections.push(['標準から変更した項目',changes.length?changes.flatMap(r=>[r.label,...changeLines(r),'']):['標準設定からの変更はありません']]);

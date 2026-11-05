@@ -11,8 +11,8 @@ with sync_playwright() as p:
  page.on('console',lambda m:errors.append(m.text) if m.type=='error' else None)
  page.on('request',lambda r:requests.append(r.url))
  page.goto(BASE);page.wait_for_load_state('networkidle')
- assert page.locator('button[data-copy]').count()==12
- assert page.locator('button[data-copy] svg').count()==12
+ assert page.locator('button[data-copy]').count()==14
+ assert page.locator('button[data-copy] svg').count()==14
  def fill(id,value):
   el=page.locator('#'+id);el.focus();el.fill(value)
  def check_copy(id,kind,expected):
@@ -43,7 +43,45 @@ with sync_playwright() as p:
   assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
   check_copy('materials','basis','部品代×5％+2,500')
   if width in [1440,390]:page.locator('#row-materials').screenshot(path=str(ART/f'copy-row-{width}.png'))
- fill('parts','-1');assert page.locator('button[data-copy]:disabled').count()==12
+ # Overhead uses the same row controls and must not be included in its own subtotal.
+ page.locator('details.settings').evaluate('(el)=>el.open=true')
+ for id in ['materialsRate','removalRate','protectionRate']:fill(id,'0')
+ fill('parts','500000');fill('workers','0');fill('shipping','57740')
+ for id in ['adopt-materials','adopt-labor','adopt-shipping']:fill(id,'')
+ assert page.locator('#standard-overhead').inner_text()=='55,774円'
+ fill('adopt-overhead','55700')
+ assert page.locator('#subtotal').inner_text()=='557,740円'
+ assert page.locator('#grand-total').inner_text()=='613,440円'
+ assert page.locator('#total-diff').inner_text()=='－74円'
+ assert page.locator('#cost-rows .cost-row').last.get_attribute('id')=='row-overhead'
+ fill('memo-overhead','端数調整')
+ check_copy('overhead','amount','55,700');check_copy('overhead','basis','小計×10％-74')
+ page.locator('#preview').click()
+ summary=page.locator('#summary-text').inner_text()
+ assert summary.count('諸経費：55,700円')==1
+ assert '端数調整' in summary
+ fill('adopt-overhead','0');assert page.locator('#grand-total').inner_text()=='557,740円'
+ fill('adopt-overhead','');assert page.locator('#grand-total').inner_text()=='613,514円'
+ fill('adopt-overhead','55700');fill('shipping','57750')
+ assert page.locator('#booked-overhead').inner_text()=='55,700円'
+ check_copy('overhead','basis','小計×10％-75')
+ # Welfare reference cost follows labor adoption, without affecting totals.
+ fill('workers','1.5')
+ assert page.locator('#welfare-cost').inner_text()=='原価（参考）：14,194円 × 0.66 ＝ 9,368.04円'
+ fill('adopt-labor','100000')
+ assert page.locator('#welfare-cost').inner_text()=='原価（参考）：16,315円 × 0.66 ＝ 10,767.9円'
+ page.locator('#preview').click()
+ assert '原価（参考）：16,315円 × 0.66 ＝ 10,767.9円' in page.locator('#summary-text').inner_text()
+ for width in [1440,390,320]:
+  page.set_viewport_size({'width':width,'height':1000})
+  assert page.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
+  if width!=320:
+   page.locator('#row-overhead').screenshot(path=str(ART/f'overhead-{width}.png'))
+   page.locator('.totals-list').screenshot(path=str(ART/f'welfare-{width}.png'))
+ fill('adopt-overhead','-1');assert page.locator('#copy-amount-overhead').is_disabled()
+ fill('adopt-overhead','')
+ fill('parts','150000');fill('adopt-materials','10000');fill('materialsRate','5')
+ fill('parts','-1');assert page.locator('button[data-copy]:disabled').count()==14
  fill('parts','150000');assert page.locator('button[data-copy]:disabled').count()==0
  # Denied clipboard permission or unavailable API yields selectable text beside that row.
  page.evaluate("Object.defineProperty(navigator,'clipboard',{value:{writeText:()=>Promise.reject(new Error('NotAllowedError'))},configurable:true})")
@@ -54,5 +92,5 @@ with sync_playwright() as p:
  assert len(requests)==network_before,requests[network_before:]
  assert not errors,errors
  assert page.evaluate('localStorage.length+sessionStorage.length')==0
- print('PASS: 実クリップボード12ボタン、標準/増減/0/率変更、売価原価分離、小数人員、PC・モバイル、不正入力、拒否時代替、通信なし')
+ print('PASS: 実クリップボード14ボタン、標準/増減/0/率変更、売価原価分離、小数人員、PC・モバイル、不正入力、拒否時代替、通信なし')
  b.close()

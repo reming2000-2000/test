@@ -22,7 +22,7 @@ with sync_playwright() as p:
  assert page.locator('.table-head>span').count()==4
  assert all(not t.strip() for t in page.locator('[data-copy]').all_text_contents())
  for k,v in [('parts','850000'),('workers','6'),('shipping','20000')]:fill(page.locator('#'+k),v)
- expected_order=['部品代','交換作業費','消耗資材費','撤去品引取費','部品送料・運搬交通費','養生・安全対策費']
+ expected_order=['部品代','交換作業費','消耗資材費','撤去品引取費','部品送料・運搬交通費','養生・安全対策費','諸経費']
  assert page.locator('#cost-rows .cost-name').all_text_contents()==expected_order
  assert page.locator('#grand-total').inner_text()=='1,516,476円'
  fill(page.locator('#adopt-materials'),'70000');fill(page.locator('#memo-materials'),'特殊部品のため・重量物')
@@ -38,7 +38,7 @@ with sync_playwright() as p:
  start=len(requests)
  page.locator('#preview').click();text=page.locator('#summary-text').inner_text()
  detail=text.split('【見積内訳】')[1].split('【交換作業費の売価・原価】')[0]
- assert [line.split('：')[0] for line in detail.strip().splitlines()[:6]]==expected_order
+ assert [line.split('：')[0] for line in detail.strip().splitlines()[:7]]==expected_order
  for expected in ['1,546,726円','1,516,476円','特殊部品のため・重量物','出力日時：','日本時間','16.315％','＋30,250円']:assert expected in text,expected
  page.locator('#copy-text').click();page.wait_for_function("() => document.querySelector('#notice').textContent === '結果をコピーしました'")
  copied=page.evaluate('navigator.clipboard.readText()');assert '特殊部品のため・重量物' in copied
@@ -66,9 +66,10 @@ with sync_playwright() as p:
  assert page.locator('#grand-total').inner_text()=='1,166,994円'
  assert page.locator('#basis-labor').inner_text()=='売価：1.5人 × 58,000円 ＝ 87,000円'
  assert page.locator('#labor-cost').inner_text()=='原価（参考）：1.5人 × 36,000円 ＝ 54,000円'
+ assert page.locator('#welfare-cost').inner_text()=='原価（参考）：14,194円 × 0.66 ＝ 9,368.04円'
  page.locator('#preview').click()
  text=page.locator('#summary-text').inner_text()
- for expected in ['作業人員：1.5人','原価（参考）：1.5人 × 36,000円 ＝ 54,000円','見積計上額：87,000円']:
+ for expected in ['作業人員：1.5人','原価（参考）：1.5人 × 36,000円 ＝ 54,000円','見積計上額：87,000円','原価（参考）：14,194円 × 0.66 ＝ 9,368.04円']:
   assert expected in text
  assert '交換作業人工' not in text and '作業員人数' not in text
  start=len(requests)
@@ -84,7 +85,7 @@ with sync_playwright() as p:
   page.set_viewport_size({'width':width,'height':844});page.locator('#preview').click()
   assert page.evaluate('document.documentElement.scrollWidth <= innerWidth'),width
   if width==390:page.screenshot(path=str(ART/'mobile.png'),full_page=True)
- page.locator('details.settings').evaluate('(el)=>el.open=true');fill(page.locator('#overheadRate'),'12');assert page.locator('#overhead').inner_text()=='162,540円'
+ page.locator('details.settings').evaluate('(el)=>el.open=true');fill(page.locator('#overheadRate'),'12');assert page.locator('#booked-overhead').inner_text()=='162,540円'
  page.on('dialog',lambda d:d.accept());page.locator('#reset').click()
  assert page.locator('#parts').input_value()=='0';assert page.locator('#overheadRate').input_value()=='10';assert page.locator('#memo-materials').input_value()=='';assert page.locator('#adopt-materials').input_value()=='';assert page.locator('#grand-total').inner_text()=='0円'
  fill(page.locator('#parts'),'999');page.reload();assert page.locator('#parts').input_value()=='0';assert page.locator('#grand-total').inner_text()=='0円'
