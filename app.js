@@ -112,13 +112,13 @@ $('estimate-form').addEventListener('focusin',e=>{
 $('estimate-form').addEventListener('focusout',e=>{const el=e.target;if(!el.dataset.kind)return;const r=E.parse(el.value,el.dataset.kind,el.dataset.optional==='true');if(!r.error && el.value.trim() && r.value!==null)el.value=E.format(r.value);});
 $('round-standard').addEventListener('click',()=>{
  if(invalid)return;
- const adopted=E.roundedAdoptions(state.p);
+ const adopted=E.roundedAdoptions(state.p,state.rows.find(row=>row.id==='parts').adopted);
  if(Object.values(adopted).some(value=>value>1000000000000n*E.SCALE)){
   $('round-notice').textContent='計算結果が採用額の入力上限（1兆円）を超えるため、一括入力できません。基本入力・標準設定を確認してください。';return;
  }
  for(const [id,value] of Object.entries(adopted))$('adopt-'+id).value=E.format(value);
  update();
- $('round-notice').textContent='標準額の端数を調整して、採用額に一括入力しました。';
+ $('round-notice').textContent='部品代以外の標準額の端数を調整して、採用額に一括入力しました。';
 });
 $('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});update();$('parts').focus();});
 function stamp(date=new Date()){

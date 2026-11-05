@@ -107,26 +107,33 @@ with sync_playwright() as p:
  assert not page.locator('#adjustment-materials').is_visible()
  page.locator('#reset').click()
  assert page.locator('#cost-rows details[open]').count()==0
- # Batch rounding button sits directly below settings and rounds all adopted values.
+ # Batch rounding leaves both the parts input and its adopted value untouched.
  assert page.locator('details.settings + .rounding-toolbar #round-standard').count()==1
- for before,after in [('1552110','1,552,000'),('155211','155,200'),('15521','15,500'),('1550','1,500')]:
+ for before,after in [('1552110','1,552,110'),('155211','155,211'),('15521','15,521'),('1550','1,550')]:
   fill(page.locator('#parts'),before);page.locator('#round-standard').click()
-  assert page.locator('#adopt-parts').input_value()==after
+  assert page.locator('#adopt-parts').input_value()==''
+  assert page.locator('#booked-parts').inner_text()==after+'円'
+  assert page.locator('#parts').input_value().replace(',','')==before
  fill(page.locator('#parts'),'155211');fill(page.locator('#workers'),'1.501');fill(page.locator('#shipping'),'1550')
- fill(page.locator('#adopt-parts'),'7');fill(page.locator('#memo-parts'),'端数調整のメモ')
+ fill(page.locator('#adopt-parts'),'154321');fill(page.locator('#memo-parts'),'端数調整のメモ')
  page.locator('#round-standard').click()
- assert page.locator('#adopt-parts').input_value()=='155,200'
- assert page.locator('#adopt-overhead').input_value()=='26,500'
- assert page.locator('#subtotal').inner_text()=='265,100円'
- assert page.locator('#grand-total').inner_text()=='305,794円'
+ assert page.locator('#adopt-parts').input_value()=='154,321'
+ assert page.locator('#adopt-overhead').input_value()=='26,400'
+ assert page.locator('#subtotal').inner_text()=='264,221円'
+ assert page.locator('#grand-total').inner_text()=='304,815円'
  assert page.locator('#memo-parts').input_value()=='端数調整のメモ'
  assert page.locator('#welfare-cost').inner_text()=='原価（参考）：14,194円 × 0.66 ＝ 9,368円'
  assert '一括入力しました' in page.locator('#round-notice').inner_text()
  first_values=page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')
  page.locator('#round-standard').click()
  assert page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')==first_values
+ fill(page.locator('#adopt-parts'),'0');page.locator('#round-standard').click()
+ assert page.locator('#adopt-parts').input_value()=='0'
+ assert page.locator('#booked-parts').inner_text()=='0円'
+ assert page.locator('#booked-overhead').inner_text()=='10,900円'
+ fill(page.locator('#adopt-parts'),'154321');page.locator('#round-standard').click()
  page.locator('#preview').click()
- for expected in ['部品代：155,200円','端数調整のメモ','原価（参考）：14,194円 × 0.66 ＝ 9,368円']:
+ for expected in ['部品代：154,321円','端数調整のメモ','原価（参考）：14,194円 × 0.66 ＝ 9,368円']:
   assert expected in page.locator('#summary-text').inner_text()
  with page.expect_download() as info:page.locator('#save-image').click()
  info.value.save_as(ART/'rounded-result.png')

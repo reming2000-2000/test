@@ -64,10 +64,20 @@ console.log('PASS: 諸経費上書き・空欄・0・小計除外・二重計上
 for(const [before,after] of [[1552110,1552000],[155211,155200],[15521,15500],[1550,1500],[1000000,1000000],[999999.99,999900],[100.99,100],[99.99,0],[0,0]])assert.equal(E.roundStandardAmount(v(before)),v(after));
 const roundingInput={...p,parts:v(155211),workers:v(1.501),shipping:v(1550)};
 const rounded=E.roundedAdoptions(roundingInput);
-assert.deepEqual(Object.fromEntries(Object.entries(rounded).map(([k,n])=>[k,E.format(n)])),{parts:'155,200',labor:'87,000',materials:'7,700',removal:'4,600',shipping:'7,500',protection:'3,100',overhead:'26,500'});
+assert.deepEqual(Object.fromEntries(Object.entries(rounded).map(([k,n])=>[k,E.format(n)])),{labor:'87,000',materials:'7,700',removal:'4,600',shipping:'7,500',protection:'3,100',overhead:'26,500'});
 const roundedResult=E.calculate(roundingInput,rounded);
-assert.equal(roundedResult.subtotal,v(265100));assert.equal(roundedResult.total,v(305794));assert.equal(roundedResult.welfare,v(14194));assert.equal(roundedResult.welfareCost,v(9368));
+assert.equal(roundedResult.subtotal,v(265111));assert.equal(roundedResult.total,v(305805));assert.equal(roundedResult.welfare,v(14194));assert.equal(roundedResult.welfareCost,v(9368));
 assert.deepEqual(E.roundedAdoptions(roundingInput),rounded);
 const cascading={...p,parts:v(199),workers:v(.001),shipping:v(195),materialsRate:v(100),removalRate:v(100),protectionRate:v(100)};
 assert.equal(E.calculate(cascading).overhead,v(105.3));assert.equal(E.roundedAdoptions(cascading).overhead,0n);
 console.log('PASS: 指定4例・100万円境界・100円未満・一括入力・諸経費の再計算順・原価切り捨て');
+
+assert.equal(Object.hasOwn(rounded,'parts'),false);
+const keptParts=v(154321),keptRounded=E.roundedAdoptions(roundingInput,keptParts);
+assert.equal(Object.hasOwn(keptRounded,'parts'),false);
+const keptResult=E.calculate(roundingInput,{...keptRounded,parts:keptParts});
+assert.equal(keptResult.subtotal,v(264221));assert.equal(keptResult.overhead,v(26400));assert.equal(keptResult.total,v(304815));
+const zeroPartsRounded=E.roundedAdoptions(roundingInput,0n);
+const zeroPartsResult=E.calculate(roundingInput,{...zeroPartsRounded,parts:0n});
+assert.equal(zeroPartsResult.subtotal,v(109900));assert.equal(zeroPartsResult.overhead,v(10900));
+console.log('PASS: 部品代は一括対象外・手動採用額/採用0を保持・保持した部品代から諸経費再計算');

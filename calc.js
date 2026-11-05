@@ -50,10 +50,10 @@
     const unit=(value>=1000000n*SCALE?1000n:100n)*SCALE;
     return value/unit*unit;
   }
-  function roundedAdoptions(input) {
-    const adopted=Object.fromEntries(calculate(input).rows.filter(row=>row.id!=='overhead').map(row=>[row.id,roundStandardAmount(row.standard)]));
-    // Round overhead after its base has been updated by rounding the six direct costs.
-    adopted.overhead=roundStandardAmount(calculate(input,adopted).rows.find(row=>row.id==='overhead').standard);
+  function roundedAdoptions(input,partsAdoption=null) {
+    const adopted=Object.fromEntries(calculate(input).rows.filter(row=>row.id!=='overhead'&&row.id!=='parts').map(row=>[row.id,roundStandardAmount(row.standard)]));
+    // Keep the current parts amount; use it with the five rounded costs as the overhead base.
+    adopted.overhead=roundStandardAmount(calculate(input,{...adopted,parts:partsAdoption}).rows.find(row=>row.id==='overhead').standard);
     return adopted;
   }
   const api={SCALE,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions};
