@@ -97,3 +97,13 @@ assert.equal(revisedCosts.laborCost,v(216000));assert.equal(revisedCosts.welfare
 assert.equal(revisedCosts.total,revisedCosts.subtotal+revisedCosts.overhead+revisedCosts.welfare);
 assert.equal(E.calculate(p).costs.materials,v(26350));
 console.log('PASS: 利益率38％の原価62％・採用額追従・小数切り捨て・0・原価の二重加算なし');
+// Independent discount conversions, preserving the existing estimate and reference costs.
+assert.deepEqual(E.calculateDiscount(v(500000),v(5),'rate'),{amount:v(25000),after:v(475000),rate:'5％'});
+assert.deepEqual(E.calculateDiscount(v(500000),v(30000),'amount'),{amount:v(30000),after:v(470000),rate:'6％'});
+assert.equal(E.calculateDiscount(v(500001),v(5),'rate').amount,v(25000.05));
+assert.equal(E.calculateDiscount(v(500000.99),v(100),'rate').after,0n);
+assert.equal(E.calculateDiscount(v(500000),0n,'rate').after,v(500000));
+assert.equal(E.calculateDiscount(0n,0n,'amount').rate,'—');
+assert.equal(E.calculateDiscount(v(3),v(1),'amount').rate,'33.33％');
+for(const args of [[v(100),v(101),'rate'],[v(100),v(101),'amount'],[v(100),v(-1),'amount'],[0n,v(1),'amount']])assert.throws(()=>E.calculateDiscount(...args),RangeError);
+console.log('PASS: 50万円の5％/3万円引き・小数円・0/100％・基準0・見積超過・負数');

@@ -69,6 +69,7 @@ function update(){
  $('row-copy-feedback-welfare').hidden=true;$('row-copy-feedback-welfare').replaceChildren();
  $('welfare-basis').textContent=`採用交換作業費 × ${E.format(p.welfareRate)}％・1円未満切り捨て`;
  $('grand-total').textContent=E.yen(result.total);$('standard-total').textContent=E.yen(result.standardTotal);$('current-total').textContent=E.yen(result.total);$('total-diff').textContent=E.signed(result.diff);diffClass($('total-diff'),result.diff);$('total-rate').textContent=E.ratio(result.diff,result.standardTotal,2);
+ updateDiscounts();
  renderChanges();$('validation-banner').hidden=!invalid;
  for(const id of ['save-image','copy-text','preview','round-standard'])$(id).disabled=invalid;
  document.querySelectorAll('[data-copy]').forEach(button=>button.disabled=invalid||copyingButtons.has(button));
@@ -131,7 +132,28 @@ $('round-standard').addEventListener('click',()=>{
  $('round-notice').textContent='部品代以外の標準額の端数を調整して、採用額に一括入力しました。';
  catFeedback('round');
 });
-$('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});update();$('parts').focus();catFeedback('reset');});
+function resetDiscounts(){for(const mode of ['rate','amount'])$('discount-'+mode).value='';}
+function updateDiscounts(){
+ $('discount-base').textContent=invalid?'—':E.yen(state.total);
+ for(const mode of ['rate','amount']){
+  const input=$('discount-'+mode),parsed=E.parse(input.value,mode==='rate'?'rate':'money',true);
+  let error=parsed.error,result=null;
+  if(!invalid&&!error&&parsed.value!==null){
+   try{result=E.calculateDiscount(state.total,parsed.value,mode);}catch(e){error=e.message;}
+  }
+  input.setAttribute('aria-invalid',String(!!error));$('discount-'+mode+'-error').textContent=error;
+  $('discount-'+mode+'-result').textContent=result?(mode==='rate'?E.yen(result.amount)+'（'+E.format(result.amount/10000n)+'万円）':result.rate):'—';
+  $('discount-'+mode+'-after').textContent=result?E.yen(result.after):'—';
+ }
+}
+$('discount-form').addEventListener('submit',event=>event.preventDefault());
+$('discount-form').addEventListener('input',()=>{updateDiscounts();catFeedback('typing');});
+$('discount-form').addEventListener('focusin',event=>{const el=event.target;if(el.dataset.kind&&el.value.includes(',')){
+ const before=el.value,start=el.selectionStart,end=el.selectionEnd;el.value=before.replaceAll(',','');
+ if(start!==null&&end!==null)el.setSelectionRange(before.slice(0,start).replaceAll(',','').length,before.slice(0,end).replaceAll(',','').length);
+}});
+$('discount-form').addEventListener('focusout',event=>{const el=event.target;if(!el.dataset.kind)return;const parsed=E.parse(el.value,el.dataset.kind,true);if(!parsed.error&&parsed.value!==null)el.value=E.format(parsed.value);});
+$('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetDiscounts();update();$('parts').focus();catFeedback('reset');});
 function stamp(date=new Date()){
  const f=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});const p=Object.fromEntries(f.formatToParts(date).map(v=>[v.type,v.value]));
  return {display:`${p.year}/${p.month}/${p.day} ${p.hour}:${p.minute}:${p.second}（日本時間）`,file:`estimate_${p.year}${p.month}${p.day}_${p.hour}${p.minute}${p.second}.png`};
@@ -180,5 +202,5 @@ $('save-image').addEventListener('click',async()=>{
  finally{button.disabled=invalid;}
 });
 // Browser back/forward caches must not retain previous input values.
-window.addEventListener('pageshow',()=>{descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});update();});
+window.addEventListener('pageshow',()=>{descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetDiscounts();update();});
 update();

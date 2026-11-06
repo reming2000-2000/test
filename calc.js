@@ -63,6 +63,13 @@
     adopted.overhead=roundStandardAmount(calculate(input,{...adopted,parts:partsAdoption}).rows.find(row=>row.id==='overhead').standard);
     return adopted;
   }
-  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions};
+  function calculateDiscount(total,value,mode) {
+    if(total<0n||value<0n||!['rate','amount'].includes(mode))throw new RangeError('値引の条件を確認してください');
+    if(mode==='rate'&&value>100n*SCALE)throw new RangeError('値引率は100％以下で入力してください');
+    const amount=mode==='rate'?percent(total,value):value;
+    if(amount>total)throw new RangeError('値引額は見積金額以下で入力してください');
+    return {amount,after:total-amount,rate:total===0n?'—':ratio(amount,total,2,false).replace(/\.00％$/,'％').replace(/(\.\d)0％$/,'$1％')};
+  }
+  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions,calculateDiscount};
   if(typeof module!=='undefined') module.exports=api; else root.Estimate=api;
 })(typeof window!=='undefined'?window:globalThis);
