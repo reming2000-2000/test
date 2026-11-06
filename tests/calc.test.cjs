@@ -85,3 +85,15 @@ console.log('PASS: 部品代は一括対象外・手動採用額/採用0を保�
 assert.equal(copied('protection',{protection:v(12694)},{...copyInput,parts:v(288500)}),'部品代×2％+6,924（＝部品代4.4％）');
 assert.equal(copied('removal',{removal:v(15000)}),'部品代×3％+10,500（＝部品代10％）');
 console.log('PASS: 部品代比のコピー注記・小数1桁丸め・整数比率・部品代0・無補正');
+// Reference expenses use booked revenue and a gross margin of 38%, not a 38% markup.
+const costsBaseline=E.calculate(p);
+assert.deepEqual(costsBaseline.costs,{materials:v(26350),removal:v(15810),protection:v(10540),overhead:v(82274),labor:v(216000),welfare:v(37472)});
+for(const id of E.expenseCostIds){
+ for(const [booked,cost] of [[100000,62000],[10000.99,6200],[0.01,0],[0,0]])assert.equal(E.calculate(p,{[id]:v(booked)}).costs[id],v(cost),id);
+}
+const revisedCosts=E.calculate(p,{materials:v(70000),overhead:v(55700)});
+assert.equal(revisedCosts.costs.materials,v(43400));assert.equal(revisedCosts.costs.overhead,v(34534));
+assert.equal(revisedCosts.laborCost,v(216000));assert.equal(revisedCosts.welfareCost,v(37472));
+assert.equal(revisedCosts.total,revisedCosts.subtotal+revisedCosts.overhead+revisedCosts.welfare);
+assert.equal(E.calculate(p).costs.materials,v(26350));
+console.log('PASS: 利益率38％の原価62％・採用額追従・小数切り捨て・0・原価の二重加算なし');

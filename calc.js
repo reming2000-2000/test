@@ -3,6 +3,7 @@
   'use strict';
   const SCALE = 10n ** 12n;
   const defaults = {parts:'0',workers:'0',shipping:'0',materialsRate:'5',removalRate:'3',protectionRate:'2',laborPrice:'58000',workerShipping:'4000',overheadRate:'10',welfareRate:'16.315'};
+  const expenseCostIds=['materials','removal','protection','overhead'];
   const laborCostPrice = 36000n * SCALE;
   const items = [['parts','部品代'],['labor','交換作業費'],['materials','消耗資材費'],['removal','撤去品引取費'],['shipping','部品送料・運搬交通費'],['protection','養生・安全対策費'],['overhead','諸経費']];
   function decimal(s) { const [a,b=''] = String(s).split('.'); return BigInt(a || '0')*SCALE+BigInt(b.padEnd(12,'0')); }
@@ -46,7 +47,11 @@
     rows.push(overheadRow);
     const overhead=overheadRow.booked, welfare=percent(rows.find(r=>r.id==='labor').booked,p.welfareRate)/SCALE*SCALE;
     const total=subtotal+overhead+welfare, standardTotal=standardSubtotal+percent(standardSubtotal,p.overheadRate)+percent(standard.labor,p.welfareRate)/SCALE*SCALE;
-    return {rows,subtotal,overhead,welfare,total,standardTotal,diff:total-standardTotal,laborCost:mul(p.workers,laborCostPrice)/SCALE*SCALE,welfareCost:mul(welfare,decimal('0.66'))/SCALE*SCALE};
+    const laborCost=mul(p.workers,laborCostPrice)/SCALE*SCALE,welfareCost=mul(welfare,decimal('0.66'))/SCALE*SCALE;
+    // Margin is profit / selling price: 38% margin means cost is 62% of booked revenue.
+    const costs=Object.fromEntries(expenseCostIds.map(id=>[id,percent(rows.find(row=>row.id===id).booked,62n*SCALE)/SCALE*SCALE]));
+    Object.assign(costs,{labor:laborCost,welfare:welfareCost});
+    return {rows,subtotal,overhead,welfare,total,standardTotal,diff:total-standardTotal,laborCost,welfareCost,costs};
   }
   function roundStandardAmount(value) {
     const unit=(value>=1000000n*SCALE?1000n:100n)*SCALE;
@@ -58,6 +63,6 @@
     adopted.overhead=roundStandardAmount(calculate(input,{...adopted,parts:partsAdoption}).rows.find(row=>row.id==='overhead').standard);
     return adopted;
   }
-  const api={SCALE,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions};
+  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions};
   if(typeof module!=='undefined') module.exports=api; else root.Estimate=api;
 })(typeof window!=='undefined'?window:globalThis);

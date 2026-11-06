@@ -70,3 +70,11 @@
 .rounding-toolbar #round-notice{color:#315f7e;max-width:520px}
 .rounding-toolbar .button{background:#edf4f9;border-color:#c5d8e7;color:#315f7e}
 @media(max-width:760px){.rounding-toolbar{padding:0;margin-bottom:22px}.rounding-toolbar>div{width:100%}.rounding-toolbar .button{width:100%}.rounding-toolbar p{font-size:10px}}
+
+.expense-cost-line{display:flex;align-items:center;justify-content:flex-end;gap:5px;font-size:11px;color:var(--muted);margin-top:2px}
+.expense-cost-line>span:first-child{font-size:10px;white-space:nowrap}
+.expense-cost-line>span:nth-child(2){overflow-wrap:anywhere;min-width:0}
+.cost-inline .cost-basis{margin-top:0}
+.totals-list>div>span:first-child{min-width:0}
+.totals-list>.welfare-feedback{display:block;margin:8px 0;padding:8px 10px}
+@media(max-width:760px){.booked-cell:has(.expense-cost-line){flex-wrap:wrap}.expense-cost-line{width:100%;font-size:12px}.cost-inline{gap:2px}.cost-inline .cost-basis{overflow-wrap:anywhere;min-width:0}}

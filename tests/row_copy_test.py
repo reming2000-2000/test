@@ -11,8 +11,8 @@ with sync_playwright() as p:
  page.on('console',lambda m:errors.append(m.text) if m.type=='error' else None)
  page.on('request',lambda r:requests.append(r.url))
  page.goto(BASE);page.wait_for_load_state('networkidle')
- assert page.locator('button[data-copy]').count()==14
- assert page.locator('button[data-copy] svg').count()==14
+ assert page.locator('button[data-copy]').count()==20
+ assert page.locator('button[data-copy] svg').count()==20
  def fill(id,value):
   el=page.locator('#'+id);el.focus();el.fill(value)
  def check_copy(id,kind,expected):
@@ -85,7 +85,7 @@ with sync_playwright() as p:
  fill('adopt-overhead','-1');assert page.locator('#copy-amount-overhead').is_disabled()
  fill('adopt-overhead','')
  fill('parts','150000');fill('adopt-materials','10000');fill('materialsRate','5')
- fill('parts','-1');assert page.locator('button[data-copy]:disabled').count()==14
+ fill('parts','-1');assert page.locator('button[data-copy]:disabled').count()==20
  fill('parts','150000');assert page.locator('button[data-copy]:disabled').count()==0
  # Denied clipboard permission or unavailable API yields selectable text beside that row.
  page.evaluate("Object.defineProperty(navigator,'clipboard',{value:{writeText:()=>Promise.reject(new Error('NotAllowedError'))},configurable:true})")
@@ -96,5 +96,5 @@ with sync_playwright() as p:
  assert len(requests)==network_before,requests[network_before:]
  assert not errors,errors
  assert page.evaluate('localStorage.length+sessionStorage.length')==0
- print('PASS: 実クリップボード14ボタン、標準/増減/0/率変更、売価原価分離、小数人員、PC・モバイル、不正入力、拒否時代替、通信なし')
+ print('PASS: 実クリップボード20ボタン、標準/増減/0/率変更、売価原価分離、小数人員、PC・モバイル、不正入力、拒否時代替、通信なし')
  b.close()

@@ -14,17 +14,17 @@ function field([id,label,unit,kind]) {
 basic.forEach(d=>$('basic-fields').append(field(d)));
 settings.forEach(d=>$('setting-fields').append(field(d)));
 const copyIcon='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="8" y="8" width="12" height="13" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"></path></svg>';
-function rowCopyButton(id,label,kind){return `<button type="button" class="row-copy-button" id="copy-${kind}-${id}" data-copy="${kind}" data-item="${id}" aria-label="${label}の${kind==='amount'?'見積計上額':'算定根拠'}をコピー">${copyIcon}</button>`;}
+function rowCopyButton(id,label,kind){return `<button type="button" class="row-copy-button" id="copy-${kind}-${id}" data-copy="${kind}" data-item="${id}" aria-label="${label}の${kind==='cost'?'参考原価':kind==='amount'?'見積計上額':'算定根拠'}をコピー">${copyIcon}</button>`;}
 for(const [id,label] of E.items){
  const row=document.createElement('article');row.className='cost-row';row.id='row-'+id;row.setAttribute('aria-label',label);
  row.innerHTML=`
  <div class="cost-title"><span class="cost-name">${label}</span>
   <div class="basis-inline"><span id="basis-${id}" class="basis"></span>${rowCopyButton(id,label,'basis')}</div>
-  ${id==='labor'?'<span id="labor-cost" class="basis cost-basis"></span>':''}
+  ${id==='labor'?'<div class="basis-inline cost-inline"><span id="labor-cost" class="basis cost-basis"></span>'+rowCopyButton(id,label,'cost')+'</div>':''}
  </div>
  <div class="money-cell standard-cell"><span class="cell-label">標準額</span><span id="standard-${id}"></span></div>
  <div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span></div>
- <div class="money-cell booked-cell"><span class="cell-label">見積計上額</span><div class="amount-inline"><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount')}</div></div>
+ <div class="money-cell booked-cell"><span class="cell-label">見積計上額</span><div class="amount-inline"><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount')}</div>${E.expenseCostIds.includes(id)?'<div class="expense-cost-line" title="見積計上額×62％（利益率38％）、1円未満切り捨て"><span>参考原価</span><span id="cost-'+id+'"></span>'+rowCopyButton(id,label,'cost')+'</div>':''}</div>
  <div id="adjustment-${id}" class="adjustment-summary" hidden><span>標準からの補正</span><strong id="diff-${id}"></strong><span id="ratio-${id}"></span></div>
  <details id="detail-${id}" class="row-details"><summary>詳細・メモ</summary><div class="row-details-content"><p id="parts-ratio-${id}" class="detail-ratio"></p><label class="memo-label" for="memo-${id}">補正理由・メモ <span>任意</span></label><input class="note-input" id="memo-${id}" maxlength="100" placeholder="理由を入力" aria-label="${label}の補正理由・メモ"></div></details>
  <div id="row-copy-feedback-${id}" class="row-copy-feedback" role="status" hidden></div>`;
@@ -54,6 +54,8 @@ function update(){
   details.querySelector('summary').textContent=changed?'補正理由・詳細':'詳細・メモ';
   $('copy-amount-'+r.id).title=r.label+'の金額をコピー：'+E.format(r.booked);
   $('copy-basis-'+r.id).title=r.label+'の算定根拠をコピー：'+E.copyBasis(p,r);
+  if(E.expenseCostIds.includes(r.id))$('cost-'+r.id).textContent=E.yen(result.costs[r.id]);
+  if(Object.hasOwn(result.costs,r.id))$('copy-cost-'+r.id).title=r.label+'の参考原価をコピー：'+E.format(result.costs[r.id]);
   clearTimeout(copyFeedbackTimers.get(r.id));copyFeedbackTimers.delete(r.id);
   $('row-copy-feedback-'+r.id).hidden=true;
   $('row-copy-feedback-'+r.id).replaceChildren();
@@ -61,6 +63,9 @@ function update(){
  $('labor-cost').textContent=`原価（参考）：${E.format(p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(result.laborCost)}`;
  for(const id of ['subtotal','welfare'])$(id).textContent=E.yen(result[id]);
  $('welfare-cost').textContent=`原価（参考）：${E.yen(result.welfare)} × 0.66 ＝ ${E.yen(result.welfareCost)}`;
+ $('copy-cost-welfare').title='法定福利費の参考原価をコピー：'+E.format(result.costs.welfare);
+ clearTimeout(copyFeedbackTimers.get('welfare'));copyFeedbackTimers.delete('welfare');
+ $('row-copy-feedback-welfare').hidden=true;$('row-copy-feedback-welfare').replaceChildren();
  $('welfare-basis').textContent=`採用交換作業費 × ${E.format(p.welfareRate)}％・1円未満切り捨て`;
  $('grand-total').textContent=E.yen(result.total);$('standard-total').textContent=E.yen(result.standardTotal);$('current-total').textContent=E.yen(result.total);$('total-diff').textContent=E.signed(result.diff);diffClass($('total-diff'),result.diff);$('total-rate').textContent=E.ratio(result.diff,result.standardTotal,2);
  renderChanges();$('validation-banner').hidden=!invalid;
@@ -79,28 +84,29 @@ function renderChanges(){
 }
 async function copyRow(button){
  if(invalid || copyingButtons.has(button))return;
- const row=state.rows.find(r=>r.id===button.dataset.item);
- const amount=button.dataset.copy==='amount';
- const text=amount?E.format(row.booked):E.copyBasis(state.p,row);
- const feedback=$('row-copy-feedback-'+row.id);
- clearTimeout(copyFeedbackTimers.get(row.id));copyFeedbackTimers.delete(row.id);
+ const id=button.dataset.item,kind=button.dataset.copy;
+ const row=state.rows.find(r=>r.id===id);
+ const text=kind==='cost'?E.format(state.costs[id]):kind==='amount'?E.format(row.booked):E.copyBasis(state.p,row);
+ const copyLabel=kind==='cost'?'原価':kind==='amount'?'金額':'算定根拠';
+ const feedback=$('row-copy-feedback-'+id);
+ clearTimeout(copyFeedbackTimers.get(id));copyFeedbackTimers.delete(id);
  copyingButtons.add(button);button.disabled=true;
  try{
   if(!navigator.clipboard?.writeText)throw Error('Clipboard unavailable');
   await navigator.clipboard.writeText(text);
   catFeedback('copy');
-  feedback.textContent=`${amount?'金額':'算定根拠'}をコピーしました：${text}`;
-  copyFeedbackTimers.set(row.id,setTimeout(()=>{feedback.hidden=true;copyFeedbackTimers.delete(row.id);},4000));
+  feedback.textContent=`${copyLabel}をコピーしました：${text}`;
+  copyFeedbackTimers.set(id,setTimeout(()=>{feedback.hidden=true;copyFeedbackTimers.delete(id);},4000));
  }catch{
   const label=document.createElement('label'),area=document.createElement('textarea');
-  area.id='row-copy-area-'+row.id;area.value=text;area.readOnly=true;area.rows=2;
+  area.id='row-copy-area-'+id;area.value=text;area.readOnly=true;area.rows=2;
   label.htmlFor=area.id;label.textContent='自動コピーが利用できません。以下を選択してコピーしてください。';
   feedback.replaceChildren(label,area);feedback.hidden=false;area.focus();area.select();
  }finally{
   feedback.hidden=false;copyingButtons.delete(button);button.disabled=invalid;
  }
 }
-$('cost-rows').addEventListener('click',event=>{
+$('estimate-form').addEventListener('click',event=>{
  const button=event.target.closest('button[data-copy]');
  if(button)copyRow(button);
 });
@@ -135,6 +141,7 @@ function summary(time){
  sections.push(['標準設定',settings.map(([id,label,unit])=>`${label}：${E.format(s.p[id])}${unit}`)]);
  sections.push(['見積内訳',[...s.rows.map(r=>`${r.label}：${E.yen(r.booked)}`),`小計（諸経費・法定福利費を除く）：${E.yen(s.subtotal)}`,`法定福利費（採用交換作業費 × ${E.format(s.p.welfareRate)}％・切り捨て）：${E.yen(s.welfare)}`,`見積金額（税別）：${E.yen(s.total)}`]]);
  sections.push(['交換作業費の売価・原価',[basis(s.p,s).labor,`見積計上額：${E.yen(s.rows.find(r=>r.id==='labor').booked)}`,`原価（参考）：${E.format(s.p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(s.laborCost)}`, '原価は1円未満切り捨て。確認用の表示で、見積総額には加算しません。']]);
+ sections.push(['作業経費の参考原価（利益率38％）',[...s.rows.filter(row=>E.expenseCostIds.includes(row.id)).map(row=>`${row.label}：売価 ${E.yen(row.booked)} → 参考原価 ${E.yen(s.costs[row.id])}`),'参考原価＝見積計上額×62％、1円未満切り捨て。見積総額には加算しません。']]);
  sections.push(['法定福利費の原価',[`売価（見積計上額）：${E.yen(s.welfare)}`,`原価（参考）：${E.yen(s.welfare)} × 0.66 ＝ ${E.yen(s.welfareCost)}`, '原価は1円未満切り捨て。確認用の表示で、見積総額には加算しません。']]);
  sections.push(['標準との比較',[`標準見積総額：${E.yen(s.standardTotal)}`,`現在の採用見積総額：${E.yen(s.total)}`,`総補正額：${E.signed(s.diff)}`,`標準見積に対する増減率：${E.ratio(s.diff,s.standardTotal,2)}`]]);
  const changes=s.rows.filter(r=>r.diff!==0n);
