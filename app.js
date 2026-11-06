@@ -20,11 +20,10 @@ for(const [id,label] of E.items){
  row.innerHTML=`
  <div class="cost-title"><span class="cost-name">${label}</span>
   <div class="basis-inline"><span id="basis-${id}" class="basis"></span>${rowCopyButton(id,label,'basis')}</div>
-  ${id==='labor'?'<div class="basis-inline cost-inline"><span id="labor-cost" class="basis cost-basis"></span>'+rowCopyButton(id,label,'cost')+'</div>':''}
  </div>
  <div class="money-cell standard-cell"><span class="cell-label">標準額</span><span id="standard-${id}"></span></div>
  <div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span></div>
- <div class="money-cell booked-cell"><span class="cell-label">見積計上額</span><div class="amount-inline"><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount')}</div>${E.expenseCostIds.includes(id)?'<div class="expense-cost-line" title="見積計上額×62％（利益率38％）、1円未満切り捨て"><span>参考原価</span><span id="cost-'+id+'"></span>'+rowCopyButton(id,label,'cost')+'</div>':''}</div>
+ <div class="money-cell booked-cell"><span class="cell-label">見積計上額</span><div class="amount-inline"><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount')}</div>${E.expenseCostIds.includes(id)||id==='labor'?'<div class="expense-cost-line" id="cost-info-'+id+'" title="'+(id==='labor'?'作業人員×36,000円、1円未満切り捨て':'見積計上額×62％（利益率38％）、1円未満切り捨て')+'"><span>参考原価</span><span id="'+(id==='labor'?'labor-cost':'cost-'+id)+'"></span>'+rowCopyButton(id,label,'cost')+'</div>':''}</div>
  <div id="adjustment-${id}" class="adjustment-summary" hidden><span>標準からの補正</span><strong id="diff-${id}"></strong><span id="ratio-${id}"></span></div>
  <details id="detail-${id}" class="row-details"><summary>詳細・メモ</summary><div class="row-details-content"><p id="parts-ratio-${id}" class="detail-ratio"></p><label class="memo-label" for="memo-${id}">補正理由・メモ <span>任意</span></label><input class="note-input" id="memo-${id}" maxlength="100" placeholder="理由を入力" aria-label="${label}の補正理由・メモ"></div></details>
  <div id="row-copy-feedback-${id}" class="row-copy-feedback" role="status" hidden></div>`;
@@ -54,15 +53,17 @@ function update(){
   details.querySelector('summary').textContent=changed?'補正理由・詳細':'詳細・メモ';
   $('copy-amount-'+r.id).title=r.label+'の金額をコピー：'+E.format(r.booked);
   $('copy-basis-'+r.id).title=r.label+'の算定根拠をコピー：'+E.copyBasis(p,r);
-  if(E.expenseCostIds.includes(r.id))$('cost-'+r.id).textContent=E.yen(result.costs[r.id]);
+  if(Object.hasOwn(result.costs,r.id))$(r.id==='labor'?'labor-cost':'cost-'+r.id).textContent=E.yen(result.costs[r.id]);
   if(Object.hasOwn(result.costs,r.id))$('copy-cost-'+r.id).title=r.label+'の参考原価をコピー：'+E.format(result.costs[r.id]);
   clearTimeout(copyFeedbackTimers.get(r.id));copyFeedbackTimers.delete(r.id);
   $('row-copy-feedback-'+r.id).hidden=true;
   $('row-copy-feedback-'+r.id).replaceChildren();
  }
- $('labor-cost').textContent=`原価（参考）：${E.format(p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(result.laborCost)}`;
+ $('cost-info-labor').title=`作業人員 ${E.format(p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(result.laborCost)}（1円未満切り捨て）`;
  for(const id of ['subtotal','welfare'])$(id).textContent=E.yen(result[id]);
- $('welfare-cost').textContent=`原価（参考）：${E.yen(result.welfare)} × 0.66 ＝ ${E.yen(result.welfareCost)}`;
+ $('welfare-cost').textContent=E.yen(result.welfareCost);
+ $('cost-info-welfare').title=`法定福利費 ${E.yen(result.welfare)} × 0.66 ＝ ${E.yen(result.welfareCost)}（1円未満切り捨て）`;
+ $('copy-amount-welfare').title='法定福利費の金額をコピー：'+E.format(result.welfare);
  $('copy-cost-welfare').title='法定福利費の参考原価をコピー：'+E.format(result.costs.welfare);
  clearTimeout(copyFeedbackTimers.get('welfare'));copyFeedbackTimers.delete('welfare');
  $('row-copy-feedback-welfare').hidden=true;$('row-copy-feedback-welfare').replaceChildren();
@@ -86,7 +87,7 @@ async function copyRow(button){
  if(invalid || copyingButtons.has(button))return;
  const id=button.dataset.item,kind=button.dataset.copy;
  const row=state.rows.find(r=>r.id===id);
- const text=kind==='cost'?E.format(state.costs[id]):kind==='amount'?E.format(row.booked):E.copyBasis(state.p,row);
+ const text=kind==='cost'?E.format(state.costs[id]):kind==='amount'?E.format(id==='welfare'?state.welfare:row.booked):E.copyBasis(state.p,row);
  const copyLabel=kind==='cost'?'原価':kind==='amount'?'金額':'算定根拠';
  const feedback=$('row-copy-feedback-'+id);
  clearTimeout(copyFeedbackTimers.get(id));copyFeedbackTimers.delete(id);

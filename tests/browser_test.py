@@ -22,7 +22,7 @@ with sync_playwright() as p:
  assert page.locator('.table-head>span').count()==4
  assert all(not t.strip() for t in page.locator('[data-copy]').all_text_contents())
  for k,v in [('parts','850000'),('workers','6'),('shipping','20000')]:fill(page.locator('#'+k),v)
- expected_order=['部品代','交換作業費','消耗資材費','撤去品引取費','部品送料・運搬交通費','養生・安全対策費','諸経費']
+ expected_order=['部品代','交換作業費','消耗資材費','部品送料・運搬交通費','撤去品引取費','養生・安全対策費','諸経費']
  assert page.locator('#cost-rows .cost-name').all_text_contents()==expected_order
  assert page.locator('#grand-total').inner_text()=='1,516,476円'
  fill(page.locator('#adopt-materials'),'70000');fill(page.locator('#memo-materials'),'特殊部品のため・重量物')
@@ -65,8 +65,8 @@ with sync_playwright() as p:
  assert page.locator('#standard-shipping').inner_text()=='26,000円'
  assert page.locator('#grand-total').inner_text()=='1,166,994円'
  assert page.locator('#basis-labor').inner_text()=='売価：1.5人 × 58,000円 ＝ 87,000円'
- assert page.locator('#labor-cost').inner_text()=='原価（参考）：1.5人 × 36,000円 ＝ 54,000円'
- assert page.locator('#welfare-cost').inner_text()=='原価（参考）：14,194円 × 0.66 ＝ 9,368円'
+ assert page.locator('#labor-cost').inner_text()=='54,000円'
+ assert page.locator('#welfare-cost').inner_text()=='9,368円'
  page.locator('#preview').click()
  text=page.locator('#summary-text').inner_text()
  for expected in ['作業人員：1.5人','原価（参考）：1.5人 × 36,000円 ＝ 54,000円','見積計上額：87,000円','原価（参考）：14,194円 × 0.66 ＝ 9,368円']:
@@ -122,7 +122,7 @@ with sync_playwright() as p:
  assert page.locator('#subtotal').inner_text()=='264,221円'
  assert page.locator('#grand-total').inner_text()=='304,815円'
  assert page.locator('#memo-parts').input_value()=='端数調整のメモ'
- assert page.locator('#welfare-cost').inner_text()=='原価（参考）：14,194円 × 0.66 ＝ 9,368円'
+ assert page.locator('#welfare-cost').inner_text()=='9,368円'
  assert '一括入力しました' in page.locator('#round-notice').inner_text()
  first_values=page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')
  page.locator('#round-standard').click()

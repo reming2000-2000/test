@@ -20,9 +20,15 @@ with sync_playwright() as p:
   assert page.locator('#grand-total').inner_text()==total
  fill('parts','850000');fill('workers','1.5');fill('shipping','20000')
  assert page.locator('[data-copy="cost"]').count()==6
+ assert page.locator('#row-labor .booked-cell #labor-cost').count()==1
+ assert page.locator('#row-labor .cost-title #labor-cost').count()==0
+ assert page.locator('.welfare-amounts #welfare-cost').count()==1
  assert page.locator('#grand-total').inner_text()=='1,166,994円'
  before=len(requests)
  for id,cost in [('materials','26,350'),('removal','15,810'),('protection','10,540'),('overhead','64,976'),('labor','54,000'),('welfare','9,368')]:copy_cost(id,cost)
+ page.locator('#copy-amount-welfare').click()
+ expect(page.locator('#row-copy-feedback-welfare')).to_contain_text('金額をコピーしました：14,194')
+ assert page.evaluate('navigator.clipboard.readText()')=='14,194'
  for id in ['materials','removal','protection','overhead']:
   fill('adopt-'+id,'100000');assert page.locator('#cost-'+id).inner_text()=='62,000円';copy_cost(id,'62,000')
   fill('adopt-'+id,'10000.99');copy_cost(id,'6,200')

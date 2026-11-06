@@ -5,7 +5,7 @@
   const defaults = {parts:'0',workers:'0',shipping:'0',materialsRate:'5',removalRate:'3',protectionRate:'2',laborPrice:'58000',workerShipping:'4000',overheadRate:'10',welfareRate:'16.315'};
   const expenseCostIds=['materials','removal','protection','overhead'];
   const laborCostPrice = 36000n * SCALE;
-  const items = [['parts','部品代'],['labor','交換作業費'],['materials','消耗資材費'],['removal','撤去品引取費'],['shipping','部品送料・運搬交通費'],['protection','養生・安全対策費'],['overhead','諸経費']];
+  const items = [['parts','部品代'],['labor','交換作業費'],['materials','消耗資材費'],['shipping','部品送料・運搬交通費'],['removal','撤去品引取費'],['protection','養生・安全対策費'],['overhead','諸経費']];
   function decimal(s) { const [a,b=''] = String(s).split('.'); return BigInt(a || '0')*SCALE+BigInt(b.padEnd(12,'0')); }
   const mul=(a,b)=>a*b/SCALE, percent=(a,b)=>a*b/(100n*SCALE);
   function parse(raw, kind='money', optional=false) {

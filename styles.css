@@ -63,7 +63,7 @@
 }
 
 #row-overhead{border-top:2px solid #dbe5ed}
-#welfare-cost{display:block;margin-top:5px;overflow-wrap:anywhere}
+#welfare-cost{overflow-wrap:anywhere}
 
 .rounding-toolbar{display:flex;flex-wrap:wrap;align-items:center;gap:10px 24px;margin:0 0 24px;padding:0 4px}
 .rounding-toolbar p{font-size:11px;color:var(--muted);margin:7px 0 0;line-height:1.7}
@@ -78,3 +78,8 @@
 .totals-list>div>span:first-child{min-width:0}
 .totals-list>.welfare-feedback{display:block;margin:8px 0;padding:8px 10px}
 @media(max-width:760px){.booked-cell:has(.expense-cost-line){flex-wrap:wrap}.expense-cost-line{width:100%;font-size:12px}.cost-inline{gap:2px}.cost-inline .cost-basis{overflow-wrap:anywhere;min-width:0}}
+
+.welfare-amounts{width:28%;min-width:180px;text-align:right}
+.welfare-amounts strong{font-size:18px;color:#244a68}
+.totals-list .welfare-row>span{flex:1}
+@media(max-width:760px){.totals-list .welfare-row{flex-direction:column;align-items:stretch;gap:4px}.welfare-amounts{width:100%;min-width:0}.welfare-amounts strong{font-size:21px}}
