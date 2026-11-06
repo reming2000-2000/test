@@ -18,18 +18,23 @@ function rowCopyButton(id,label,kind){return `<button type="button" class="row-c
 for(const [id,label] of E.items){
  const row=document.createElement('article');row.className='cost-row';row.id='row-'+id;row.setAttribute('aria-label',label);
  row.innerHTML=`
- <div class="cost-title"><span class="cost-name">${label}</span>
+ <div class="cost-title"><span class="cost-name">${label}</span>${id==='overhead'?'<div class="overhead-controls"><span id="overhead-mode-label" class="tag"></span><button id="overhead-auto" type="button" class="overhead-auto" hidden>自動に戻す</button></div>':''}
   <div class="basis-inline"><span id="basis-${id}" class="basis"></span>${rowCopyButton(id,label,'basis')}</div>
  </div>
  <div class="money-cell standard-cell"><span class="cell-label">標準額</span><span id="standard-${id}"></span></div>
- <div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span></div>
+ <div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span>${id==='overhead'?'<small id="overhead-help" class="overhead-help">入力で手動固定・空欄で自動に戻る</small>':''}</div>
  <div class="money-cell booked-cell"><span class="cell-label">見積計上額</span><div class="amount-inline"><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount')}</div>${E.expenseCostIds.includes(id)||id==='labor'?'<div class="expense-cost-line" id="cost-info-'+id+'" title="'+(id==='labor'?'作業人員×36,000円、1円未満切り捨て':'見積計上額×62％（利益率38％）、1円未満切り捨て')+'"><span>参考原価</span><span id="'+(id==='labor'?'labor-cost':'cost-'+id)+'"></span>'+rowCopyButton(id,label,'cost')+'</div>':''}</div>
  <div id="adjustment-${id}" class="adjustment-summary" hidden><span>標準からの補正</span><strong id="diff-${id}"></strong><span id="ratio-${id}"></span></div>
  <details id="detail-${id}" class="row-details"><summary>詳細・メモ</summary><div class="row-details-content"><p id="parts-ratio-${id}" class="detail-ratio"></p><label class="memo-label" for="memo-${id}">補正理由・メモ <span>任意</span></label><input class="note-input" id="memo-${id}" maxlength="100" placeholder="理由を入力" aria-label="${label}の補正理由・メモ"></div></details>
+ ${id==='overhead'?'<div id="overhead-warning" class="overhead-warning" role="status" hidden>小計または諸経費率が変わりました。手動固定の諸経費を確認してください。</div>':''}
  <div id="row-copy-feedback-${id}" class="row-copy-feedback" role="status" hidden></div>`;
  $('cost-rows').append(row);
 }
 let state, invalid=false, imageUrl;
+let overheadRounded=false,overheadManual=false,overheadFixedBasis=null;
+function overheadMode(){return overheadManual?'manual':overheadRounded?'rounded':'auto';}
+function overheadModeLabel(){return overheadManual?'手動固定':overheadRounded?'自動連動・端数調整':'自動連動';}
+function resetOverhead(){overheadRounded=false;overheadManual=false;overheadFixedBasis=null;}
 const copyingButtons=new Set();
 const copyFeedbackTimers=new Map();
 function read(input){const result=E.parse(input.value,input.dataset.kind,input.dataset.optional==='true');input.setAttribute('aria-invalid',String(!!result.error));$(input.id+'-error').textContent=result.error; if(result.error)invalid=true;return result.value;}
@@ -38,8 +43,22 @@ function diffClass(node,value){node.classList.toggle('increase',value>0n);node.c
 function update(){
  invalid=false;const p={},adopted={},memos={};
  descriptors.forEach(([id])=>p[id]=read($(id)));
- E.items.forEach(([id])=>{adopted[id]=read($('adopt-'+id));memos[id]=$('memo-'+id).value;});
- const result=E.calculate(p,adopted);state={p,memos,...result};const bases=basis(p,result);
+ E.items.forEach(([id])=>{
+  const input=$('adopt-'+id);
+  if(id==='overhead'&&!overheadManual){adopted[id]=null;input.setAttribute('aria-invalid','false');$('adopt-overhead-error').textContent='';}
+  else adopted[id]=read(input);
+  memos[id]=$('memo-'+id).value;
+ });
+ const result=E.calculate(p,adopted,overheadMode());
+ if(!overheadManual)$('adopt-overhead').value=overheadRounded?E.format(result.overhead):'';
+ const currentBasis=result.subtotal.toString()+':'+p.overheadRate.toString();
+ if(overheadManual&&!invalid&&overheadFixedBasis===null)overheadFixedBasis=currentBasis;
+ $('overhead-warning').hidden=!overheadManual||invalid||overheadFixedBasis===currentBasis;
+ $('overhead-mode-label').textContent=overheadModeLabel();
+ $('row-overhead').dataset.overheadMode=overheadMode();
+ $('overhead-auto').hidden=!overheadManual;
+ $('overhead-auto').textContent=overheadRounded?'端数調整付き自動に戻す':'自動に戻す';
+ state={p,memos,...result};const bases=basis(p,result);
  for(const r of result.rows){
   $('basis-'+r.id).textContent=bases[r.id];$('standard-'+r.id).textContent=E.yen(r.standard);$('booked-'+r.id).textContent=E.yen(r.booked);$('diff-'+r.id).textContent=E.signed(r.diff);diffClass($('diff-'+r.id),r.diff);
   $('ratio-'+r.id).textContent=r.adopted!==null?'標準比 '+E.ratio(r.diff,r.standard):'';
@@ -113,7 +132,18 @@ $('estimate-form').addEventListener('click',event=>{
  if(button)copyRow(button);
 });
 $('estimate-form').addEventListener('submit',e=>e.preventDefault());
-$('estimate-form').addEventListener('input',update);
+$('estimate-form').addEventListener('input',event=>{
+ if(event.target.id==='adopt-overhead'){
+  overheadManual=event.target.value.normalize('NFKC').trim()!=='';
+  overheadFixedBasis=null;
+ }
+ update();
+});
+$('overhead-auto').addEventListener('click',()=>{
+ resetToOverheadAuto();
+});
+function resetToOverheadAuto(){overheadManual=false;overheadFixedBasis=null;update();}
+
 $('estimate-form').addEventListener('focusin',e=>{
  const el=e.target;if(!el.dataset.kind || !el.value.includes(','))return;
  const before=el.value,start=el.selectionStart,end=el.selectionEnd;
@@ -127,7 +157,8 @@ $('round-standard').addEventListener('click',()=>{
  if(Object.values(adopted).some(value=>value>1000000000000n*E.SCALE)){
   $('round-notice').textContent='計算結果が採用額の入力上限（1兆円）を超えるため、一括入力できません。基本入力・標準設定を確認してください。';return;
  }
- for(const [id,value] of Object.entries(adopted))$('adopt-'+id).value=E.format(value);
+ for(const [id,value] of Object.entries(adopted))if(id!=='overhead')$('adopt-'+id).value=E.format(value);
+ overheadRounded=true;overheadManual=false;overheadFixedBasis=null;
  update();
  $('round-notice').textContent='部品代以外の標準額の端数を調整して、採用額に一括入力しました。';
  catFeedback('round');
@@ -153,7 +184,7 @@ $('discount-form').addEventListener('focusin',event=>{const el=event.target;if(e
  if(start!==null&&end!==null)el.setSelectionRange(before.slice(0,start).replaceAll(',','').length,before.slice(0,end).replaceAll(',','').length);
 }});
 $('discount-form').addEventListener('focusout',event=>{const el=event.target;if(!el.dataset.kind)return;const parsed=E.parse(el.value,el.dataset.kind,true);if(!parsed.error&&parsed.value!==null)el.value=E.format(parsed.value);});
-$('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetDiscounts();update();$('parts').focus();catFeedback('reset');});
+$('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetOverhead();resetDiscounts();update();$('parts').focus();catFeedback('reset');});
 function stamp(date=new Date()){
  const f=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});const p=Object.fromEntries(f.formatToParts(date).map(v=>[v.type,v.value]));
  return {display:`${p.year}/${p.month}/${p.day} ${p.hour}:${p.minute}:${p.second}（日本時間）`,file:`estimate_${p.year}${p.month}${p.day}_${p.hour}${p.minute}${p.second}.png`};
@@ -166,6 +197,7 @@ function summary(time){
  sections.push(['交換作業費の売価・原価',[basis(s.p,s).labor,`見積計上額：${E.yen(s.rows.find(r=>r.id==='labor').booked)}`,`原価（参考）：${E.format(s.p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(s.laborCost)}`, '原価は1円未満切り捨て。確認用の表示で、見積総額には加算しません。']]);
  sections.push(['作業経費の参考原価（利益率38％）',[...s.rows.filter(row=>E.expenseCostIds.includes(row.id)).map(row=>`${row.label}：売価 ${E.yen(row.booked)} → 参考原価 ${E.yen(s.costs[row.id])}`),'参考原価＝見積計上額×62％、1円未満切り捨て。見積総額には加算しません。']]);
  sections.push(['法定福利費の原価',[`売価（見積計上額）：${E.yen(s.welfare)}`,`原価（参考）：${E.yen(s.welfare)} × 0.66 ＝ ${E.yen(s.welfareCost)}`, '原価は1円未満切り捨て。確認用の表示で、見積総額には加算しません。']]);
+ sections.push(['諸経費の連動状態',[overheadModeLabel(),...(!$('overhead-warning').hidden?['小計または諸経費率が変更されています。手動固定の諸経費を確認してください。']:[])]]);
  sections.push(['標準との比較',[`標準見積総額：${E.yen(s.standardTotal)}`,`現在の採用見積総額：${E.yen(s.total)}`,`総補正額：${E.signed(s.diff)}`,`標準見積に対する増減率：${E.ratio(s.diff,s.standardTotal,2)}`]]);
  const changes=s.rows.filter(r=>r.diff!==0n);
  sections.push(['標準から変更した項目',changes.length?changes.flatMap(r=>[r.label,...changeLines(r),'']):['標準設定からの変更はありません']]);
@@ -202,5 +234,5 @@ $('save-image').addEventListener('click',async()=>{
  finally{button.disabled=invalid;}
 });
 // Browser back/forward caches must not retain previous input values.
-window.addEventListener('pageshow',()=>{descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetDiscounts();update();});
+window.addEventListener('pageshow',()=>{descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetOverhead();resetDiscounts();update();});
 update();

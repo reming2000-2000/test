@@ -107,3 +107,13 @@ assert.equal(E.calculateDiscount(0n,0n,'amount').rate,'—');
 assert.equal(E.calculateDiscount(v(3),v(1),'amount').rate,'33.33％');
 for(const args of [[v(100),v(101),'rate'],[v(100),v(101),'amount'],[v(100),v(-1),'amount'],[0n,v(1),'amount']])assert.throws(()=>E.calculateDiscount(...args),RangeError);
 console.log('PASS: 50万円の5％/3万円引き・小数円・0/100％・基準0・見積超過・負数');
+// Automatic overhead ignores a stale adopted value; rounding remains reactive to the direct subtotal.
+const liveInput={...p,parts:v(557740),workers:0n,shipping:0n,materialsRate:0n,removalRate:0n,protectionRate:0n};
+assert.equal(E.calculate(liveInput,{overhead:v(123)},'auto').overhead,v(55774));
+assert.equal(E.calculate(liveInput,{overhead:v(123)},'rounded').overhead,v(55700));
+assert.equal(E.calculate(liveInput,{overhead:v(123)},'manual').overhead,v(123));
+const liveChanged=E.calculate(liveInput,{parts:v(583620),overhead:v(55700)},'rounded');
+assert.equal(liveChanged.overhead,v(58300));assert.equal(liveChanged.total,v(641920));assert.equal(liveChanged.costs.overhead,v(36146));
+assert.equal(E.calculate({...liveInput,overheadRate:v(12)},{parts:v(583620)},'rounded').overhead,v(70000));
+assert.equal(E.calculate({...liveInput,parts:v(10016740)},{},'rounded').overhead,v(1001000));
+console.log('PASS: 諸経費自動/端数自動/手動・小計と率の変更・100万円境界・原価と総額追従');

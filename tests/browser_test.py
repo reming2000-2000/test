@@ -141,9 +141,10 @@ with sync_playwright() as p:
  fill(page.locator('#parts'),'155211')
  page.locator('details.settings').evaluate('(el)=>el.open=true')
  fill(page.locator('#laborPrice'),'1000000000000');fill(page.locator('#workers'),'1000000')
+ guard_values=page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')
  page.locator('#round-standard').click()
  assert '上限' in page.locator('#round-notice').inner_text()
- assert page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')==first_values
+ assert page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')==guard_values
  page.locator('#reset').click()
  assert page.locator('#adopt-overhead').input_value()==''
  assert page.locator('#round-notice').inner_text()==''

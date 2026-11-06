@@ -90,3 +90,10 @@
 .discount-row:last-child{border-bottom:0;padding-bottom:8px}.discount-entry{display:flex;align-items:center;gap:10px;color:var(--muted);font-size:12px}.discount-entry .input-shell{max-width:220px;flex:1;min-width:0}.discount-entry input{font-size:17px}
 .discount-arrow{text-align:center;color:#9aafbf;font-size:22px}.discount-answer{display:flex;align-items:baseline;gap:8px 14px;flex-wrap:wrap}.discount-answer>span{font-size:11px;color:var(--muted)}.discount-answer output{font-size:18px;font-weight:650;color:#2e6188;overflow-wrap:anywhere;min-width:0}.discount-answer small{width:100%;font-size:12px;color:var(--muted)}.discount-answer small strong{color:#314d64;font-size:15px;margin-left:8px;overflow-wrap:anywhere}
 @media(max-width:760px){.discount-panel .section-heading{align-items:flex-start;flex-wrap:wrap;gap:8px}.discount-base{font-size:10px}.discount-row{grid-template-columns:minmax(0,1fr) 20px minmax(0,1fr);gap:10px;padding:18px 0}.discount-row .input-label{font-size:11px}.discount-entry{gap:4px;font-size:10px}.discount-entry input{font-size:16px;padding-left:6px;padding-right:28px}.discount-entry .unit{right:9px}.discount-answer{gap:3px}.discount-answer>span{width:100%}.discount-answer output{font-size:15px}.discount-answer small{font-size:10px}.discount-answer small strong{display:block;font-size:14px;margin-left:0}.discount-arrow{font-size:17px}}
+
+.overhead-controls{display:flex;align-items:center;flex-wrap:wrap;gap:6px 10px;margin:7px 0 3px}
+.overhead-auto{border:0;border-bottom:1px solid #a9c0d1;border-radius:0;background:transparent;padding:4px 0;color:#366d97;font-size:11px;min-height:32px}
+.overhead-help{display:block;color:var(--muted);font-size:10px;margin-top:6px;line-height:1.6;text-align:right}
+.overhead-warning{grid-column:1/-1;padding:10px 12px;border:1px solid #ead6b6;background:#fff8ec;border-radius:5px;color:#946022;font-size:12px;line-height:1.7}
+#row-overhead[data-overhead-mode="manual"] .overhead-controls .tag{background:#fff3df;color:#946022}
+@media(max-width:760px){.overhead-auto{min-height:44px}.overhead-help{text-align:left}}
