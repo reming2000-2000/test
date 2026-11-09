@@ -97,3 +97,13 @@
 .overhead-warning{grid-column:1/-1;padding:10px 12px;border:1px solid #ead6b6;background:#fff8ec;border-radius:5px;color:#946022;font-size:12px;line-height:1.7}
 #row-overhead[data-overhead-mode="manual"] .overhead-controls .tag{background:#fff3df;color:#946022}
 @media(max-width:760px){.overhead-auto{min-height:44px}.overhead-help{text-align:left}}
+
+.custom-add-toolbar{padding:15px 28px;background:#f8fbfd;border-top:1px solid var(--line)}
+.custom-add-toolbar .button{background:transparent;border-style:dashed;min-height:42px;color:#366d97}
+.custom-name-line{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:5px}
+.custom-label{display:block;font-size:10px;font-weight:500;color:var(--muted);margin-bottom:4px;text-align:left}
+.custom-name-line .custom-label{margin-bottom:0}.custom-name-input{height:40px;text-align:left;font-size:14px;font-weight:600}
+.custom-cost-row .standard-cell input{height:41px;font-size:14px}
+.custom-remove{border:0;background:transparent;color:#8494a0;font-size:10px;padding:5px 7px;min-height:32px}
+.custom-remove:hover{color:#a34a39;background:#fff3ee;border-radius:4px}
+@media(max-width:760px){.custom-add-toolbar{padding:12px 0;background:transparent;border:0}.custom-add-toolbar .button{width:100%;min-height:44px}.custom-name-input,.custom-cost-row .standard-cell input{font-size:16px;height:44px}.custom-remove{min-height:44px;min-width:44px}}

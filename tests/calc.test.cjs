@@ -117,3 +117,19 @@ assert.equal(liveChanged.overhead,v(58300));assert.equal(liveChanged.total,v(641
 assert.equal(E.calculate({...liveInput,overheadRate:v(12)},{parts:v(583620)},'rounded').overhead,v(70000));
 assert.equal(E.calculate({...liveInput,parts:v(10016740)},{},'rounded').overhead,v(1001000));
 console.log('PASS: 諸経費自動/端数自動/手動・小計と率の変更・100万円境界・原価と総額追従');
+// Optional items contribute to both subtotals, but never to the labor-only welfare base.
+const extras=[{id:'custom_1',label:'試運転調整費',amount:v(50000)}];
+const withExtra=E.calculate(p,{},'auto',extras);
+assert.equal(withExtra.subtotal,v(1377000));assert.equal(withExtra.overhead,v(137700));assert.equal(withExtra.welfare,v(56776));assert.equal(withExtra.total,v(1571476));assert.equal(withExtra.standardTotal,v(1571476));
+assert.equal(withExtra.rows.at(-2).id,'custom_1');assert.equal(withExtra.rows.at(-1).id,'overhead');
+const extraAdopted=E.calculate(p,{custom_1:v(60000)},'auto',extras);
+assert.equal(extraAdopted.total,v(1582476));assert.equal(extraAdopted.diff,v(11000));
+assert.equal(E.copyBasis(p,extraAdopted.rows.find(r=>r.id==='custom_1')),'手入力+10,000');
+const twoExtras=E.calculate(p,{},'auto',[...extras,{id:'custom_2',label:'試験費',amount:v(30000)}]);
+assert.equal(twoExtras.total,v(1604476));
+const roundExtras=[{...extras[0],amount:v(50055)}];
+const adoptedExtras=E.roundedAdoptions(p,null,roundExtras);
+assert.equal(adoptedExtras.custom_1,v(50000));assert.equal(adoptedExtras.overhead,v(137700));
+assert.equal(E.calculate(p,adoptedExtras,'rounded',roundExtras).total,v(1571476));
+assert.equal(E.calculate(p,{},'auto',[]).total,v(1516476));
+console.log('PASS: 任意項目の小計/標準/諸経費への加算・複数・採用変更・端数調整・削除後・福利費基準保持');

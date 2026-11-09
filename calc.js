@@ -34,13 +34,14 @@
     const adjustment=row.diff===0n?'':(row.diff>0n?'+':'-')+format(row.diff<0n?-row.diff:row.diff);
     const showPartsRatio=['materials','removal','protection'].includes(row.id)&&row.diff!==0n&&p.parts>0n;
     const partsRatio=showPartsRatio?'（＝部品代'+ratio(row.booked,p.parts,1,false).replace(/\.0％$/,'％')+'）':'';
-    return bases[row.id]+adjustment+partsRatio;
+    return (row.custom?'手入力':bases[row.id])+adjustment+partsRatio;
   }
-  function calculate(input,adopted={},overheadMode='manual') {
+  function calculate(input,adopted={},overheadMode='manual',extraItems=[]) {
     const p=input, standard={parts:p.parts,materials:percent(p.parts,p.materialsRate),removal:percent(p.parts,p.removalRate),protection:percent(p.parts,p.protectionRate),labor:mul(p.workers,p.laborPrice),shipping:mul(p.workers,p.workerShipping)+p.shipping};
     function makeRow([id,label]) {const adoption=id==='overhead'&&overheadMode==='auto'?null:id==='overhead'&&overheadMode==='rounded'?roundStandardAmount(standard[id]):adopted[id]??null;const booked=adoption??standard[id];return {id,label,standard:standard[id],adopted:adoption,booked,diff:booked-standard[id]};}
-    // The overhead base comprises only the six direct costs, even when overhead is overridden.
+    // Overhead is based on the six direct costs plus any user-added items.
     const rows=items.filter(([id])=>id!=='overhead').map(makeRow);
+    for(const item of extraItems){standard[item.id]=item.amount;rows.push({...makeRow([item.id,item.label]),custom:true});}
     const subtotal=rows.reduce((a,r)=>a+r.booked,0n), standardSubtotal=rows.reduce((a,r)=>a+r.standard,0n);
     standard.overhead=percent(subtotal,p.overheadRate);
     const overheadRow=makeRow(items.find(([id])=>id==='overhead'));
@@ -57,10 +58,10 @@
     const unit=(value>=1000000n*SCALE?1000n:100n)*SCALE;
     return value/unit*unit;
   }
-  function roundedAdoptions(input,partsAdoption=null) {
-    const adopted=Object.fromEntries(calculate(input).rows.filter(row=>row.id!=='overhead'&&row.id!=='parts').map(row=>[row.id,roundStandardAmount(row.standard)]));
+  function roundedAdoptions(input,partsAdoption=null,extraItems=[]) {
+    const adopted=Object.fromEntries(calculate(input,{},'manual',extraItems).rows.filter(row=>row.id!=='overhead'&&row.id!=='parts').map(row=>[row.id,roundStandardAmount(row.standard)]));
     // Keep the current parts amount; use it with the five rounded costs as the overhead base.
-    adopted.overhead=roundStandardAmount(calculate(input,{...adopted,parts:partsAdoption}).rows.find(row=>row.id==='overhead').standard);
+    adopted.overhead=roundStandardAmount(calculate(input,{...adopted,parts:partsAdoption},'manual',extraItems).rows.find(row=>row.id==='overhead').standard);
     return adopted;
   }
   function calculateDiscount(total,value,mode) {
