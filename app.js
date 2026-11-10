@@ -8,6 +8,8 @@ const partRatioIds=['materials','removal','protection','shipping'];
 const descriptors=[...basic,...settings];
 let customItems=[],nextCustomId=1;
 let rateLinks={};
+const partsRateIds=["materialsRate","removalRate"];
+let partsRateModes={materialsRate:"auto",removalRate:"auto"};
 function itemDefinitions(){
  return E.items.flatMap(item=>item[0]==='overhead'?[...customItems.map(extra=>[extra.id,$('custom-name-'+extra.id).value.trim()||extra.label]),item]:[item]);
 }
@@ -18,11 +20,29 @@ function resetCustomItems(){
 
 function field([id,label,unit,kind]) {
  const box=document.createElement('div');
- box.innerHTML=`<label class="input-label" for="${id}">${label}</label><div class="input-shell"><input id="${id}" data-kind="${kind}" inputmode="decimal" type="text" value="${E.defaults[id]}" aria-describedby="${id}-error" spellcheck="false"><span class="unit">${unit}</span></div><span id="${id}-error" class="input-error"></span>`;
+ box.innerHTML=`<label class="input-label" for="${id}">${label}</label><div class="input-shell"><input id="${id}" data-kind="${kind}" inputmode="decimal" type="text" value="${E.defaults[id]}" aria-describedby="${id}-error" spellcheck="false"><span class="unit">${unit}</span></div><span id="${id}-error" class="input-error"></span>${partsRateIds.includes(id)?'<small id="mode-'+id+'" class="parts-rate-mode"></small>':''}`;
  return box;
 }
 basic.forEach(d=>$('basic-fields').append(field(d)));
 settings.forEach(d=>$('setting-fields').append(field(d)));
+function resetPartsRateModes(){partsRateModes={materialsRate:'auto',removalRate:'auto'};}
+function syncPartsRates(){
+ const parsed=E.parse($('parts').value);
+ if(parsed.error||parsed.value===0n)return;
+ const rates=E.partsRates(parsed.value);
+ for(const id of partsRateIds)if(partsRateModes[id]==='auto')$(id).value=E.format(rates[id]);
+}
+function renderPartsRateModes(){
+ const parsed=E.parse($('parts').value),valid=!parsed.error&&parsed.value>0n;
+ for(const id of partsRateIds){
+  const mode=partsRateModes[id],node=$('mode-'+id);
+  node.textContent=mode==='auto'?(valid?'部品代に自動連動':'部品代の入力待ち'):mode==='imported'?'復元した掛率を保持':'手動の掛率を保持';
+  node.dataset.mode=mode;
+ }
+ $('reset-parts-rates').hidden=partsRateIds.every(id=>partsRateModes[id]==='auto');
+ document.querySelectorAll('[data-reference-band]').forEach(row=>row.classList.toggle('current-band',valid&&Number(row.dataset.referenceBand)===E.partsRates(parsed.value).band));
+}
+$('reset-parts-rates').addEventListener('click',()=>{resetPartsRateModes();syncPartsRates();update();});
 const copyIcon='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="8" y="8" width="12" height="13" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"></path></svg>';
 function rowCopyButton(id,label,kind){return `<button type="button" class="row-copy-button" id="copy-${kind}-${id}" data-copy="${kind}" data-item="${id}" aria-label="${label}の${kind==='cost'?'参考原価':kind==='amount'?'見積計上額':'算定根拠'}をコピー">${copyIcon}</button>`;}
 function createCostRow(id,label,custom=false){
@@ -60,6 +80,7 @@ function read(input){const result=E.parse(input.value,input.dataset.kind,input.d
 function basis(p,result){return {overhead:`小計 × ${E.format(p.overheadRate)}％`,parts:'基本入力の部品代',materials:`部品代 × ${E.format(p.materialsRate)}％`,removal:`部品代 × ${E.format(p.removalRate)}％`,protection:`部品代 × ${E.format(p.protectionRate)}％`,labor:`売価：${E.format(p.workers)}人 × ${E.yen(p.laborPrice)} ＝ ${E.yen(result.rows.find(r=>r.id==='labor').standard)}`,shipping:`${E.format(p.workers)}人 × ${E.yen(p.workerShipping)} ＋ ${E.yen(p.shipping)}`};}
 function diffClass(node,value){node.classList.toggle('increase',value>0n);node.classList.toggle('decrease',value<0n);}
 function update(){
+ renderPartsRateModes();
  invalid=false;const p={},adopted={},memos={};
  descriptors.forEach(([id])=>p[id]=read($(id)));
  const extraInputs=customItems.map(item=>({id:item.id,label:$('custom-name-'+item.id).value.trim()||item.label,amount:read($('custom-amount-'+item.id))}));
@@ -162,6 +183,8 @@ $('estimate-form').addEventListener('click',event=>{
 });
 $('estimate-form').addEventListener('submit',e=>e.preventDefault());
 $('estimate-form').addEventListener('input',event=>{
+ if(partsRateIds.includes(event.target.id))partsRateModes[event.target.id]='manual';
+ if(event.target.id==='parts')syncPartsRates();
  if(event.target.id.startsWith('adopt-'))delete rateLinks[event.target.id.slice(6)];
  const settingLink={materialsRate:'materials',removalRate:'removal',protectionRate:'protection',overheadRate:'overhead'}[event.target.id];
  if(settingLink&&rateLinks[settingLink]){delete rateLinks[settingLink];$('adopt-'+settingLink).value='';}
@@ -217,7 +240,7 @@ $('discount-form').addEventListener('focusin',event=>{const el=event.target;if(e
  if(start!==null&&end!==null)el.setSelectionRange(before.slice(0,start).replaceAll(',','').length,before.slice(0,end).replaceAll(',','').length);
 }});
 $('discount-form').addEventListener('focusout',event=>{const el=event.target;if(!el.dataset.kind)return;const parsed=E.parse(el.value,el.dataset.kind,true);if(!parsed.error&&parsed.value!==null)el.value=E.format(parsed.value);});
-$('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;resetCustomItems();descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetOverhead();resetDiscounts();resetImport();update();$('parts').focus();catFeedback('reset');});
+$('reset').addEventListener('click',()=>{if(!window.confirm('基本入力・採用額・メモ・標準設定をすべて初期状態に戻しますか？'))return;resetCustomItems();descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetOverhead();resetDiscounts();resetImport();resetPartsRateModes();update();$('parts').focus();catFeedback('reset');});
 function stamp(date=new Date()){
  const f=new Intl.DateTimeFormat('ja-JP',{timeZone:'Asia/Tokyo',year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit',second:'2-digit',hourCycle:'h23'});const p=Object.fromEntries(f.formatToParts(date).map(v=>[v.type,v.value]));
  return {display:`${p.year}/${p.month}/${p.day} ${p.hour}:${p.minute}:${p.second}（日本時間）`,file:`estimate_${p.year}${p.month}${p.day}_${p.hour}${p.minute}${p.second}.png`};
@@ -263,8 +286,9 @@ $('apply-import').addEventListener('click',()=>{
   $('custom-name-'+item.id).value=item.label;$('custom-amount-'+item.id).value=E.format(item.amount);
  }
  for(const [id] of itemDefinitions()){$('adopt-'+id).value=data.adopted[id]===null?'':E.format(data.adopted[id]);$('memo-'+id).value=data.memos[id];$('detail-'+id).open=false;}
+ partsRateModes={materialsRate:'imported',removalRate:'imported'};
  rateLinks={...data.links};overheadRounded=data.rounded;overheadManual=data.mode==='manual';overheadFixedBasis=null;
- update();resetImport();$('import-notice').textContent='計算条件を反映しました。基本入力を変更して再計算できます。';$('basic-title').scrollIntoView({block:'start'});catFeedback('copy');
+ update();resetImport();$('import-notice').textContent='計算条件を反映しました。復元した掛率を保持して再計算します。';$('basic-title').scrollIntoView({block:'start'});catFeedback('copy');
 });
 $('copy-simple').addEventListener('click',async()=>{
  if(invalid)return;const button=$('copy-simple');button.disabled=true;
@@ -305,5 +329,5 @@ $('save-image').addEventListener('click',async()=>{
  finally{button.disabled=invalid;}
 });
 // Browser back/forward caches must not retain previous input values.
-window.addEventListener('pageshow',()=>{resetCustomItems();descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetOverhead();resetDiscounts();resetImport();update();});
+window.addEventListener('pageshow',()=>{resetCustomItems();descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetOverhead();resetDiscounts();resetImport();resetPartsRateModes();update();});
 update();

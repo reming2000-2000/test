@@ -21,6 +21,9 @@ with sync_playwright() as p:
   expect(page.locator('#row-copy-feedback-'+id)).to_contain_text('をコピーしました：'+expected)
   assert page.evaluate('navigator.clipboard.readText()')==expected
   assert page.locator('#grand-total').inner_text()==before
+ # Exercise the existing 5%/3% copy examples as explicit manual settings.
+ page.locator('details.settings').evaluate('(el)=>el.open=true');fill('materialsRate','5');fill('removalRate','3')
+ page.locator('details.settings').evaluate('(el)=>el.open=false')
  fill('parts','150000');fill('workers','1.5');fill('shipping','20000')
  network_before=len(requests)
  check_copy('parts','amount','150,000')

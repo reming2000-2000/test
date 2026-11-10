@@ -118,9 +118,9 @@ with sync_playwright() as p:
  fill(page.locator('#adopt-parts'),'154321');fill(page.locator('#memo-parts'),'端数調整のメモ')
  page.locator('#round-standard').click()
  assert page.locator('#adopt-parts').input_value()=='154,321'
- assert page.locator('#adopt-overhead').input_value()=='26,400'
- assert page.locator('#subtotal').inner_text()=='264,221円'
- assert page.locator('#grand-total').inner_text()=='304,815円'
+ assert page.locator('#adopt-overhead').input_value()=='27,000'
+ assert page.locator('#subtotal').inner_text()=='270,421円'
+ assert page.locator('#grand-total').inner_text()=='311,615円'
  assert page.locator('#memo-parts').input_value()=='端数調整のメモ'
  assert page.locator('#welfare-cost').inner_text()=='9,368円'
  assert '一括入力しました' in page.locator('#round-notice').inner_text()
@@ -130,7 +130,7 @@ with sync_playwright() as p:
  fill(page.locator('#adopt-parts'),'0');page.locator('#round-standard').click()
  assert page.locator('#adopt-parts').input_value()=='0'
  assert page.locator('#booked-parts').inner_text()=='0円'
- assert page.locator('#booked-overhead').inner_text()=='10,900円'
+ assert page.locator('#booked-overhead').inner_text()=='11,600円'
  fill(page.locator('#adopt-parts'),'154321');page.locator('#round-standard').click()
  page.locator('#preview').click()
  for expected in ['部品代：154,321円','端数調整のメモ','原価（参考）：14,194円 × 0.66 ＝ 9,368円']:

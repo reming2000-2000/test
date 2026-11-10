@@ -8,6 +8,11 @@
   const items = [['parts','部品代'],['labor','交換作業費'],['materials','消耗資材費'],['shipping','部品送料・運搬交通費'],['removal','撤去品引取費'],['protection','養生・安全対策費'],['overhead','諸経費']];
   function decimal(s) { const [a,b=''] = String(s).split('.'); return BigInt(a || '0')*SCALE+BigInt(b.padEnd(12,'0')); }
   const mul=(a,b)=>a*b/SCALE, percent=(a,b)=>a*b/(100n*SCALE);
+  function partsRates(parts) {
+    // The source overlaps at 500,000 yen; give the explicit "500,000 or less" band priority.
+    const band=parts<=500000n*SCALE?0:parts<1000000n*SCALE?1:parts<3000000n*SCALE?2:3;
+    return {band,materialsRate:BigInt([7,5,3,2][band])*SCALE,removalRate:BigInt([5,3,2,1][band])*SCALE};
+  }
   function parse(raw, kind='money', optional=false) {
     const s=String(raw).normalize('NFKC').trim();
     if (!s) return {value:optional?null:0n,error:''};
@@ -75,6 +80,6 @@
     if(amount>total)throw new RangeError('値引額は見積金額以下で入力してください');
     return {amount,after:total-amount,rate:total===0n?'—':ratio(amount,total,2,false).replace(/\.00％$/,'％').replace(/(\.\d)0％$/,'$1％')};
   }
-  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions,calculateDiscount};
+  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions,calculateDiscount,partsRates};
   if(typeof module!=='undefined') module.exports=api; else root.Estimate=api;
 })(typeof window!=='undefined'?window:globalThis);
