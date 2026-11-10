@@ -134,3 +134,21 @@
 .reference-rules>details{border-top:1px solid var(--line);padding:14px 0 0;margin-top:14px}
 .reference-rules>details>summary{font-size:12px;font-weight:600;min-height:32px;color:#45637b}
 @media(max-width:760px){.reference-rules>summary span{display:block;margin:4px 0 0 16px}.reference-rules p{font-size:11px}.reference-rules th,.reference-rules td{padding:9px 6px;font-size:11px}.reference-rules .reference-intro{padding:10px}.reference-rules>details>summary{min-height:44px}.parts-rate-toolbar .button{width:100%;min-height:44px}}
+
+.fixed-adoption{display:block;font-size:10px;color:#64788a;margin-top:5px;line-height:1.6}
+.row-copy-button{position:relative}
+.row-copy-button[data-copy="amount"]{color:#285f89;background:#edf5fb;border-color:#dbe9f4}
+.row-copy-button[data-copy="amount"]:hover{background:#deedf8;border-color:#b8d1e4}
+.row-copy-button[data-copy="cost"]{color:#647384;background:#f0f2f4;border-color:#e0e5e9}
+.row-copy-button[data-copy="cost"]:hover{color:#384b5b;background:#e5e9ed;border-color:#c7d0d8}
+.row-copy-button.is-copied::after{content:'✓';position:absolute;top:-4px;right:-4px;display:grid;place-items:center;width:15px;height:15px;border-radius:50%;background:#e5f0ed;border:1px solid #a9c7bc;color:#376b57;font-size:10px;font-weight:700;line-height:1;pointer-events:none}
+.expense-cost-line{padding-top:5px}
+#undo-round{margin:4px 12px 0 0;font-size:12px}
+#undo-round-help{color:var(--muted);font-size:10px}
+.setting-changes{border:1px solid #dbe7ef;border-radius:6px;background:#f4f8fb;padding:14px 18px;margin:0 0 14px;overflow-wrap:anywhere}
+.setting-changes h3{font-size:12px;margin:0 0 6px;color:#426780}
+.setting-changes ul{list-style:none;margin:0;padding:0;display:grid;gap:5px;font-size:12px;color:#526a7e}
+.simple-preview{margin:16px 0 0;padding-top:12px;border-top:1px solid var(--line)}
+.simple-preview summary{font-size:12px;color:#45637b;min-height:32px}
+.simple-preview pre{margin-bottom:0}
+@media(max-width:760px){.fixed-adoption{font-size:10px}.setting-changes{padding:12px}.setting-changes ul{font-size:11px}.simple-preview summary{min-height:44px}.row-copy-button.is-copied::after{top:0;right:0;width:16px;height:16px}}
