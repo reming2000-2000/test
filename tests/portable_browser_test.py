@@ -24,13 +24,14 @@ with sync_playwright() as p:
  fill('adopt-overhead','100000')
  original=page.locator('#grand-total').inner_text();compact=copy()
  assert len(compact.splitlines())<40
- assert '1.5人' in compact and '特殊部品・値引き交渉後' in compact and '試運転調整費' in compact and '日本時間' in compact
+ assert '1.5人' in compact and '特殊部品・値引き交渉後' in compact and '試運転調整費' in compact and '日本時間' not in compact and '出力日時' not in compact
  # Checking doesn't mutate the current estimate. Invalid text keeps every input intact.
  fill('parts','1000');before=page.locator('#grand-total').inner_text()
  page.locator('#import-panel').evaluate('(el)=>el.open=true');fill('import-text','部品代 999999')
  page.locator('#check-import').click();expect(page.locator('#import-error')).not_to_be_empty();assert page.locator('#import-preview').is_hidden()
  assert page.locator('#grand-total').inner_text()==before
  prepare(compact);assert page.locator('#grand-total').inner_text()==before
+ assert '出力日時' not in page.locator('#import-summary').inner_text() and 'undefined' not in page.locator('#import-summary').inner_text()
  assert original in page.locator('#import-summary').inner_text()
  assert '部品代比 約8.2353％' in page.locator('#import-summary').inner_text()
  for width in [1440,768,390,320]:
@@ -38,6 +39,9 @@ with sync_playwright() as p:
   if width in [1440,390]:page.locator('#import-panel').screenshot(path=str(ART/f'compact-import-{width}.png'))
  apply();assert page.locator('#grand-total').inner_text()==original
  assert page.locator('#workers').input_value()=='1.5'
+ old_compact=compact.replace('\n','｜2026/11/10 09:05:59（日本時間）\n',1)
+ prepare(old_compact);assert '出力日時：2026/11/10 09:05:59（日本時間）' in page.locator('#import-summary').inner_text()
+ apply();assert page.locator('#grand-total').inner_text()==original
  assert page.locator('#memo-materials').input_value()=='特殊部品・値引き交渉後'
  assert page.locator('#memo-custom_1').input_value()=='追加試運転を含む'
  expect(page.locator('#link-help-materials')).to_contain_text('8.2353％')
@@ -50,6 +54,9 @@ with sync_playwright() as p:
  assert page.locator('#grand-total').inner_text()==total
  fill('parts','850000');assert page.locator('#booked-materials').inner_text()=='70,000円'
  page.locator('#preview').click();expect(page.locator('#summary-text')).to_contain_text('引継掛率で連動する費目')
+ assert '出力日時：' in page.locator('#summary-text').inner_text()
+ page.locator('#copy-text').click();expect(page.locator('#notice')).to_have_text('結果をコピーしました')
+ assert '出力日時：' in page.evaluate('navigator.clipboard.readText()')
  with page.expect_download() as download:page.locator('#save-image').click()
  download.value.save_as(ART/'compact-restored-result.png')
  # Editing linked adoption makes it fixed. Clearing returns to the standard rate.

@@ -123,7 +123,7 @@ function renderSettingChanges(){
  state.settingChanges=lines;$('setting-changes').hidden=!lines.length;$('setting-change-list').replaceChildren();
  for(const line of lines){const li=document.createElement('li');li.textContent=line;$('setting-change-list').append(li);}
 }
-function simpleText(){return window.EstimatePortable.encode(state,stamp().display,overheadMode(),overheadRounded,rateLinks);}
+function simpleText(){return window.EstimatePortable.encode(state,null,overheadMode(),overheadRounded,rateLinks);}
 function renderSimplePreview(){
  if(!$('simple-preview').open){$('simple-text').textContent='';return;}
  if(invalid){$('simple-text').textContent='入力内容を確認してください。修正後にコピー内容を表示します。';return;}
@@ -352,7 +352,7 @@ $('check-import').addEventListener('click',()=>{
   const data=window.EstimatePortable.forImport(window.EstimatePortable.decode($('import-text').value),$('import-proportional').checked);
   const linkLines=E.items.filter(([id])=>data.links[id]).map(([id,label])=>label+'：'+(id==='overhead'?'小計':'部品代')+'比 約'+E.ratio(data.links[id].amount,data.links[id].base,4,false));
   const fixed=data.result.rows.filter(r=>r.adopted!==null&&!data.links[r.id]&&!(r.id==='overhead'&&data.mode==='rounded'));
-  $('import-summary').textContent=['出力日時：'+data.time,...basic.map(([id,label,unit])=>label+'：'+E.format(data.p[id])+unit),...settings.map(([id,label,unit])=>label+'：'+E.format(data.p[id])+unit),'追加項目：'+data.extraItems.length+'項目',...data.extraItems.map(item=>item.label+'：'+E.yen(data.result.rows.find(r=>r.id===item.id).booked)),'復元後の見積金額（税別）：'+E.yen(data.result.total),'諸経費：'+({auto:'自動連動',rounded:'端数調整付き自動連動',manual:'手動固定',linked:'引継掛率で自動連動'}[data.mode]),...linkLines,...fixed.map(r=>r.label+'：'+E.yen(r.booked)+'（手動固定）'),...data.result.rows.filter(r=>data.memos[r.id]).map(r=>r.label+' メモ：'+data.memos[r.id]),'反映後、基本入力の部品代などを変更して再計算できます。'].join('\n');
+  $('import-summary').textContent=[...(data.time?['出力日時：'+data.time]:[]),...basic.map(([id,label,unit])=>label+'：'+E.format(data.p[id])+unit),...settings.map(([id,label,unit])=>label+'：'+E.format(data.p[id])+unit),'追加項目：'+data.extraItems.length+'項目',...data.extraItems.map(item=>item.label+'：'+E.yen(data.result.rows.find(r=>r.id===item.id).booked)),'復元後の見積金額（税別）：'+E.yen(data.result.total),'諸経費：'+({auto:'自動連動',rounded:'端数調整付き自動連動',manual:'手動固定',linked:'引継掛率で自動連動'}[data.mode]),...linkLines,...fixed.map(r=>r.label+'：'+E.yen(r.booked)+'（手動固定）'),...data.result.rows.filter(r=>data.memos[r.id]).map(r=>r.label+' メモ：'+data.memos[r.id]),'反映後、基本入力の部品代などを変更して再計算できます。'].join('\n');
   pendingImport=data;$('import-preview').hidden=false;
  }catch(error){$('import-error').textContent=error.message;}
 });

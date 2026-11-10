@@ -46,7 +46,7 @@
    const v=E.decimal(s.replaceAll(',',''));if(v>1000000000000000000n*E.SCALE)throw Error(key+'が上限を超えています。');return v;
   }
   function quoted(value,key,max){let s;try{s=JSON.parse(value);}catch{throw Error(key+'の引用符を確認してください。');}if(typeof s!=='string'||!s.length||s.length>max||/[\r\n]/.test(s))throw Error(key+'は改行なしの1〜'+max+'文字で指定してください。');return s;}
-  const time=take('出力日時');if(!time||time.length>100)throw Error('出力日時を確認してください。');
+  const time=take('出力日時',true);if(time!==undefined&&(!time||time.length>100))throw Error('出力日時を確認してください。');
   const p={};
   for(const [id,label,unit,kind] of fields){const raw=take(label);if(!raw.endsWith(unit))throw Error(label+'の単位を確認してください。');const parsed=E.parse(raw.slice(0,-unit.length),kind);if(parsed.error)throw Error(label+'：'+parsed.error);p[id]=parsed.value;}
   const extraItems=[],names=new Map(E.items);
@@ -96,8 +96,9 @@
   for(const ch of text){if(ch==='／'&&!quoted){entries.push(current);current='';continue;}current+=ch;if(escaped){escaped=false;continue;}if(ch==='\\'&&quoted){escaped=true;continue;}if(ch==='"')quoted=!quoted;}
   if(quoted)throw Error('メモの引用符を確認してください。');entries.push(current);return entries;
  }
- function encode(s,time,mode,rounded,links={}){
-  const fmt=E.format,lines=[`見積${fmt(s.total)}円（税別）｜部品${fmt(s.p.parts)}円・${fmt(s.p.workers)}人・部品送料${fmt(s.p.shipping)}円｜${time}`,
+ // Keep the time argument for existing callers; compact copies omit timestamps.
+ function encode(s,_time,mode,rounded,links={}){
+  const fmt=E.format,lines=[`見積${fmt(s.total)}円（税別）｜部品${fmt(s.p.parts)}円・${fmt(s.p.workers)}人・部品送料${fmt(s.p.shipping)}円`,
    `掛率：資材${fmt(s.p.materialsRate)}%／撤去${fmt(s.p.removalRate)}%／養生${fmt(s.p.protectionRate)}%／諸経費${fmt(s.p.overheadRate)}%／福利${fmt(s.p.welfareRate)}%`,
    `単価：作業${fmt(s.p.laborPrice)}円／人・運搬${fmt(s.p.workerShipping)}円／人`];
   const names={...shortNames};s.extraItems.forEach((item,i)=>names[item.id]='追加'+(i+1));
@@ -112,13 +113,13 @@
   if(typeof text!=='string'||text.length>50000)throw Error('簡易版は50,000文字以内で貼り付けてください。');
   if(text.split(/\r?\n/).some(line=>line.trim()===start))return decodeV1(text);
   const lines=text.trim().replace(/\r\n?/g,'\n').split('\n').map(s=>s.trim()).filter(Boolean);
-  const header=/^見積([\d,.]+)円（税別）｜部品([\d,.]+)円・([\d,.]+)人・部品送料([\d,.]+)円｜(.+)$/.exec(lines[0]||'');
+  const header=/^見積([\d,.]+)円（税別）｜部品([\d,.]+)円・([\d,.]+)人・部品送料([\d,.]+)円(?:｜(.+))?$/.exec(lines[0]||'');
   const rates=/^掛率：資材([\d,.]+)%／撤去([\d,.]+)%／養生([\d,.]+)%／諸経費([\d,.]+)%／福利([\d,.]+)%$/.exec(lines[1]||'');
   const prices=/^単価：作業([\d,.]+)円／人・運搬([\d,.]+)円／人$/.exec(lines[2]||'');
   const overhead=/^諸経費(標準|[\d,.]+)（(自動|端数自動|手動|引継率)）｜端数調整(あり|なし)｜その他は標準(?:｜メモ：("(?:\\.|[^"\\])*"))?$/.exec(lines[4]||'');
   if(!header||!rates||!prices||!overhead||!lines[3]?.startsWith('採用：'))throw Error('簡易コピー全文（見積金額から最後の行まで）を貼り付けてください。');
   const names=Object.fromEntries(Object.entries(shortNames).map(([id,name])=>[name,fixedLabels[id]]));
-  const out=[start,'出力日時：'+header[5],'部品代：'+header[2]+'円','作業人員：'+header[3]+'人','部品送料：'+header[4]+'円',
+  const out=[start,...(header[5]?['出力日時：'+header[5]]:[]),'部品代：'+header[2]+'円','作業人員：'+header[3]+'人','部品送料：'+header[4]+'円',
    '消耗資材費率：'+rates[1]+'％','撤去品引取費率：'+rates[2]+'％','養生・安全対策費率：'+rates[3]+'％','諸経費率：'+rates[4]+'％','法定福利費率：'+rates[5]+'％','交換作業売価単価：'+prices[1]+'円／人','作業員送料単価：'+prices[2]+'円／人'];
   const rest=lines.slice(5);let linkLine;
   for(const line of rest){

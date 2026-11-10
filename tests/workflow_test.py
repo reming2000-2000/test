@@ -130,9 +130,10 @@ with sync_playwright() as p:
  expect(page.locator('#setting-change-list')).to_contain_text('復元 9％')
  fill('parts','1500000');expect(page.locator('#setting-change-list')).to_contain_text('規定 3％ → 復元 9％')
  settings();page.locator('#reset-parts-rates').click();fill('overheadRate','10');assert page.locator('#setting-changes').is_hidden()
- # 7: compact preview is updated for values/memos/rows and matches actual clipboard text, timestamp included.
+ # 7: compact preview matches the clipboard without an automatic timestamp.
  reset();base();page.locator('#simple-preview').evaluate('(el)=>el.open=true')
- expect(page.locator('#simple-text')).to_contain_text('日本時間')
+ expect(page.locator('#simple-text')).to_contain_text('見積')
+ assert '日本時間' not in page.locator('#simple-text').inner_text()
  assert len(page.locator('#simple-text').inner_text().splitlines())==5
  fill('adopt-materials','70000');fill('memo-materials','特殊条件 "確認"／追加')
  text=simple_copy();assert page.locator('#simple-text').inner_text()==text
