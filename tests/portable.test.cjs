@@ -1,5 +1,5 @@
 const assert=require('node:assert/strict');
-const E=require('../calc.js'),P=require('../portable.js'),v=E.decimal;
+const E=require('../calc.js'),P={...require('../portable.js'),encode:require('../portable.js').encodeV1},v=E.decimal;
 const p=Object.fromEntries(Object.entries({...E.defaults,parts:'850000',workers:'6',shipping:'20000'}).map(([k,n])=>[k,v(n)]));
 function source(adopted={},mode='auto',extraItems=[],links={}){const result=E.calculate(p,adopted,mode,extraItems,links);return {p,memos:{materials:'特殊部品 "重量物"：試験'},extraItems,...result};}
 const text=s=>P.encode(s,'2026/11/10 10:00:00（日本時間）','auto',false);

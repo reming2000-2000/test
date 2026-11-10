@@ -78,7 +78,7 @@ with sync_playwright() as p:
  # Clipboard failure offers the exact reusable text for manual selection.
  page.evaluate("() => { navigator.clipboard.writeText=async()=>{throw Error('denied')}; }")
  page.locator('#copy-simple').click();expect(page.locator('#copy-fallback')).to_be_visible()
- assert 'NekoAssist 簡易シート v1' in page.locator('#copy-area').input_value()
+ assert page.locator('#copy-area').input_value().startswith('見積')
  # Clear/reset/reload removes import text, preview, links and added items.
  page.on('dialog',lambda d:d.accept());page.locator('#reset').click()
  assert page.locator('#import-text').input_value()=='' and page.locator('.custom-cost-row').count()==0

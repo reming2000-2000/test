@@ -4,7 +4,7 @@
 <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
 <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'none'; object-src 'none'; base-uri 'none'; form-action 'none'">
 <link rel="icon" href="data:,">
-<title>見積計算 | ESTIMATE</title><link rel="stylesheet" href="styles.css?v=15"><script src="calc.js?v=15" defer></script><script src="portable.js?v=1" defer></script><script src="app.js?v=16" defer></script>
+<title>見積計算 | ESTIMATE</title><link rel="stylesheet" href="styles.css?v=15"><script src="calc.js?v=15" defer></script><script src="portable.js?v=2" defer></script><script src="app.js?v=17" defer></script>
 <link rel="stylesheet" href="cat.css?v=1"><script src="cat.js?v=3" defer></script>
 </head>
 <body>
@@ -17,7 +17,7 @@
 <div class="privacy-note"><span aria-hidden="true">◈</span> 入力内容は保存・送信されません。再読み込みで消去されます。<br class="mobile-only">残す場合は、計算後に画像保存またはテキストコピーを選んでください。</div>
 <details id="import-panel" class="panel import-panel"><summary>簡易版から計算条件を読み込む</summary>
  <p class="field-guide">以前コピーした簡易版を貼り付け、内容を確認して反映します。現在の入力は置き換わります。</p>
- <label class="input-label" for="import-text">NekoAssistの簡易シート</label><textarea id="import-text" rows="6" maxlength="50000" placeholder="NekoAssist 簡易シート v1 から終了までを貼り付け" autocomplete="off" spellcheck="false"></textarea>
+ <label class="input-label" for="import-text">NekoAssistの簡易シート</label><textarea id="import-text" rows="6" maxlength="50000" placeholder="簡易コピー全文を貼り付け（以前の簡易シートも対応）" autocomplete="off" spellcheck="false"></textarea>
  <label class="import-option"><input id="import-proportional" type="checkbox" checked> 補正した経費を、採用時の割合で連動させる</label>
  <p class="field-guide">消耗資材費・撤去品引取費・養生費は部品代比、手動の諸経費は小計比を引き継ぎます。部品代・交換作業費・送料・追加項目の手動採用額は固定です。標準額の費目は元の設定率・単価で計算します。</p>
  <button id="check-import" type="button" class="button secondary">内容を確認</button><p id="import-error" class="input-error" role="status"></p>
