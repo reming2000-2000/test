@@ -395,7 +395,7 @@ function canvasSummary(out,time){
  const blocks=out.sections.map(([title,lines])=>({title,lines:lines.flatMap(t=>wrap(t,width-2*margin-32))}));
  const height=300+blocks.reduce((h,b)=>h+92+b.lines.length*lineHeight,0)+70;
  canvas.width=width*scale;canvas.height=height*scale;ctx.scale(scale,scale);ctx.fillStyle='#fff';ctx.fillRect(0,0,width,height);
- ctx.fillStyle='#245b86';ctx.fillRect(0,0,width,12);ctx.font='bold 15px system-ui, sans-serif';ctx.fillText('ESTIMATE / 計算結果',margin,60);
+ ctx.fillStyle='#245b86';ctx.fillRect(0,0,width,12);ctx.font='bold 15px system-ui, sans-serif';ctx.fillText('CAT / 計算結果',margin,60);
  ctx.fillStyle='#263a4d';ctx.font='bold 34px system-ui, sans-serif';ctx.fillText('見積計算結果の確認シート',margin,113);ctx.font='20px system-ui, sans-serif';ctx.fillStyle='#61778b';ctx.fillText('出力日時：'+time.display,margin,152);
  ctx.fillStyle='#eaf3fa';ctx.fillRect(margin,181,width-2*margin,86);ctx.fillStyle='#204c6d';ctx.font='bold 25px system-ui, sans-serif';const total='見積金額（税別） '+E.yen(state.total);let fontSize=25;while(ctx.measureText(total).width>width-2*margin-40){ctx.font=`bold ${--fontSize}px system-ui, sans-serif`;}ctx.fillText(total,margin+20,234);
  let y=300;

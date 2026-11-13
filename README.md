@@ -1,4 +1,4 @@
-# 見積計算ツール / ESTIMATE
+# CAT — Calculation Assistant Tool
 
 設備工事等の見積を、その場で計算する静的Webアプリです。日本語・PC／スマートフォン対応。実行時の依存パッケージ、ビルド、ログイン、サーバー処理は不要です。
 
@@ -13,7 +13,16 @@ cd /workspace/test
 python -m http.server 8000 --bind 127.0.0.1
 ```
 
-ブラウザで `http://127.0.0.1:8000` を開きます。公開する場合は `index.html`、`styles.css`、`calc.js`、`portable.js`、`app.js`、`cat.css`、`cat.js` の7ファイルと `assets/cat-sprites.png` を、フォルダー構成を保って静的配置してください。
+ブラウザで `http://127.0.0.1:8000` を開きます。公開する場合は `index.html`、`styles.css`、`calc.js`、`portable.js`、`app.js`、`cat.css`、`cat.js` の7ファイル、`manifest.webmanifest`、`assets/cat-sprites.png`、`assets/cat-icon.png`、`assets/cat-icon-192.png`、`assets/cat-apple-touch-icon.png`、`assets/cat-favicon.png` を、フォルダー構成を保って静的配置してください。
+
+## 名前・アイコン・更新番号
+
+- 表示名は **CAT**、正式名称は **Calculation Assistant Tool** です。タブ名・ホーム画面の短縮名はCATに統一し、正式名称は画面内に表示します。
+- favicon・Appleのホーム画面アイコン・Web App Manifest・ヘッダーで同じローカルの猫アイコンを使います。配信先が `/test/` でも動作するよう、リンク・manifestの開始URLとscopeを相対指定しています。
+- iPhoneでは共有メニューの「ホーム画面に追加」、Androidではブラウザメニューの「ホーム画面に追加」などで登録します。既存のブックマークやホームアイコンの名前・画像が更新されない場合は、登録し直してください。端末側のキャッシュによって反映に時間がかかる場合があります。
+- ホーム画面追加用のメタデータのみを加えており、サービスワーカー・オフラインキャッシュ・入力保存は実装していません。
+- フッターに **CAT v1.0.0** を表示します。CATへの改称版からの番号です。今後公開する修正ではこの番号を更新してください。軽微な修正はパッチ番号（例：v1.0.1）を上げ、変更したCSS/JS/manifest/アイコンのクエリ文字列も更新してキャッシュを切り替えます。
+- 旧名 `NekoAssist 簡易シート v1` は過去のメモを読み込むための識別子として維持します。新しい簡易コピーの内容や計算式は変更しません。
 
 ## 使い方
 
@@ -59,7 +68,7 @@ python -m http.server 8000 --bind 127.0.0.1
 - リセット・再読み込みで手動／復元状態を消し、自動入力待ちに戻します。
 - 「部規定の参考表」は標準設定・端数調整の近くで開けます。基本掛率、管理会社費用による補正例、交通費・部品送料、廃油処理、宿泊費、現場管理費・安全対策費、諸経費・法定福利費の目安をまとめています。新たな費目や契約区分入力は追加しません。
 - 原資料の会社名・運搬経路の固有地名・顧客区分の固有名称は掲載せず、参考価格と適用条件を記載します。運搬費は特定条件の目安であり、実条件で確認します。
-- 原資料に明示のない管理会社費用7%未満・部品100万円未満の補正率、諸経費1,000円以上10,000円未満の丸めは推測せず、要確認と記載します。諸経費の切り上げや交通費の車両別計算は参照用で、NekoAssistの現行計算方法を使います。
+- 原資料に明示のない管理会社費用7%未満・部品100万円未満の補正率、諸経費1,000円以上10,000円未満の丸めは推測せず、要確認と記載します。諸経費の切り上げや交通費の車両別計算は参照用で、CATの現行計算方法を使います。
 
 ## 入力・調整・転記を助ける表示
 
@@ -200,6 +209,7 @@ python tests/custom_item_test.py
 python tests/portable_browser_test.py
 python tests/parts_rates_browser_test.py
 python tests/workflow_test.py
+python tests/branding_test.py
 python tests/cat_test.py
 ```
 
