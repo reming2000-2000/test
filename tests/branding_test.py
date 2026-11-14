@@ -15,7 +15,7 @@ with sync_playwright() as p:
  assert page.title()=='CAT'
  expect(page.locator('h1')).to_have_text('CAT')
  assert 'Calculation Assistant Tool' in page.locator('.brand').inner_text()
- expect(page.locator('#app-version')).to_have_text('v1.0.0')
+ expect(page.locator('#app-version')).to_have_text('v1.0.1')
  assert page.locator('meta[name="application-name"]').get_attribute('content')=='CAT'
  assert page.locator('meta[name="apple-mobile-web-app-title"]').get_attribute('content')=='CAT'
  assert 'NekoAssist' not in page.locator('body').inner_text()
