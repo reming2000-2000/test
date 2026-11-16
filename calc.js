@@ -6,6 +6,14 @@
   const expenseCostIds=['materials','removal','protection','overhead'];
   const laborCostPrice = 36000n * SCALE;
   const items = [['parts','部品代'],['labor','交換作業費'],['materials','消耗資材費'],['shipping','部品送料・運搬交通費'],['removal','撤去品引取費'],['protection','養生・安全対策費'],['overhead','諸経費']];
+  const itemTags=[['other','未分類'],...items.filter(([id])=>id!=='overhead')];
+  function defaultOrder(extraItems=[]) {return items.flatMap(([id])=>id==='overhead'?[...extraItems.map(item=>item.id),id]:[id]);}
+  function arrangeRows(rows,order=[]) {
+    if(!order.length)return rows.slice();
+    const ids=new Set(rows.map(row=>row.id));
+    if(order.length!==rows.length||new Set(order).size!==order.length||order.some(id=>!ids.has(id)))throw new RangeError('表示順の項目・重複・不足を確認してください。');
+    const byId=new Map(rows.map(row=>[row.id,row]));return order.map(id=>byId.get(id));
+  }
   function decimal(s) { const [a,b=''] = String(s).split('.'); return BigInt(a || '0')*SCALE+BigInt(b.padEnd(12,'0')); }
   const mul=(a,b)=>a*b/SCALE, percent=(a,b)=>a*b/(100n*SCALE);
   function partsRates(parts) {
@@ -41,27 +49,32 @@
     const partsRatio=showPartsRatio?'（＝部品代'+ratio(row.booked,p.parts,1,false).replace(/\.0％$/,'％')+'）':'';
     return (row.custom?'手入力':bases[row.id])+adjustment+partsRatio;
   }
-  function calculate(input,adopted={},overheadMode='manual',extraItems=[],links={}) {
+  function calculate(input,adopted={},overheadMode='manual',extraItems=[],links={},order=[]) {
     const p=input, standard={parts:p.parts,materials:percent(p.parts,p.materialsRate),removal:percent(p.parts,p.removalRate),protection:percent(p.parts,p.protectionRate),labor:mul(p.workers,p.laborPrice),shipping:mul(p.workers,p.workerShipping)+p.shipping};
     function makeRow([id,label]) {
       const link=links[id];
       const adoption=link?(id==='overhead'?subtotal:p.parts)*link.amount/link.base:id==='overhead'&&overheadMode==='auto'?null:id==='overhead'&&overheadMode==='rounded'?roundStandardAmount(standard[id]):adopted[id]??null;
-      const booked=adoption??standard[id];return {id,label,standard:standard[id],adopted:adoption,booked,diff:booked-standard[id]};
+      const booked=adoption??standard[id];return {id,label,tag:id,standard:standard[id],adopted:adoption,booked,diff:booked-standard[id]};
     }
     // Overhead is based on the six direct costs plus any user-added items.
     const rows=items.filter(([id])=>id!=='overhead').map(makeRow);
-    for(const item of extraItems){standard[item.id]=item.amount;rows.push({...makeRow([item.id,item.label]),custom:true});}
+    for(const item of extraItems){
+      const tag=item.tag??'other';if(!itemTags.some(([id])=>id===tag))throw new RangeError('費目タグを確認してください。');
+      standard[item.id]=item.amount;rows.push({...makeRow([item.id,item.label]),tag,custom:true});
+    }
     const subtotal=rows.reduce((a,r)=>a+r.booked,0n), standardSubtotal=rows.reduce((a,r)=>a+r.standard,0n);
     standard.overhead=percent(subtotal,p.overheadRate);
     const overheadRow=makeRow(items.find(([id])=>id==='overhead'));
     rows.push(overheadRow);
-    const overhead=overheadRow.booked, welfare=percent(rows.find(r=>r.id==='labor').booked,p.welfareRate)/SCALE*SCALE;
-    const total=subtotal+overhead+welfare, standardTotal=standardSubtotal+percent(standardSubtotal,p.overheadRate)+percent(standard.labor,p.welfareRate)/SCALE*SCALE;
+    const welfareRows=rows.filter(row=>row.tag==='labor');
+    const welfareBase=welfareRows.reduce((sum,row)=>sum+row.booked,0n),standardWelfareBase=welfareRows.reduce((sum,row)=>sum+row.standard,0n);
+    const overhead=overheadRow.booked, welfare=percent(welfareBase,p.welfareRate)/SCALE*SCALE;
+    const total=subtotal+overhead+welfare, standardTotal=standardSubtotal+percent(standardSubtotal,p.overheadRate)+percent(standardWelfareBase,p.welfareRate)/SCALE*SCALE;
     const laborCost=mul(p.workers,laborCostPrice)/SCALE*SCALE,welfareCost=mul(welfare,decimal('0.66'))/SCALE*SCALE;
     // Margin is profit / selling price: 38% margin means cost is 62% of booked revenue.
     const costs=Object.fromEntries(expenseCostIds.map(id=>[id,percent(rows.find(row=>row.id===id).booked,62n*SCALE)/SCALE*SCALE]));
     Object.assign(costs,{labor:laborCost,welfare:welfareCost});
-    return {rows,subtotal,overhead,welfare,total,standardTotal,diff:total-standardTotal,laborCost,welfareCost,costs};
+    return {rows:arrangeRows(rows,order),subtotal,overhead,welfare,welfareBase,standardWelfareBase,total,standardTotal,diff:total-standardTotal,laborCost,welfareCost,costs};
   }
   function roundStandardAmount(value) {
     const unit=(value>=1000000n*SCALE?1000n:100n)*SCALE;
@@ -80,6 +93,6 @@
     if(amount>total)throw new RangeError('値引額は見積金額以下で入力してください');
     return {amount,after:total-amount,rate:total===0n?'—':ratio(amount,total,2,false).replace(/\.00％$/,'％').replace(/(\.\d)0％$/,'$1％')};
   }
-  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions,calculateDiscount,partsRates};
+  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,itemTags,defaultOrder,arrangeRows,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions,calculateDiscount,partsRates};
   if(typeof module!=='undefined') module.exports=api; else root.Estimate=api;
 })(typeof window!=='undefined'?window:globalThis);

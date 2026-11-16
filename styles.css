@@ -158,3 +158,21 @@
 .footer-product{white-space:nowrap}
 #app-version{font:inherit;font-size:10px;margin-left:6px;color:#65798b}
 @media(max-width:760px){.app-fullname{font-size:12px}.brand-icon{width:30px;height:30px}}
+
+.item-edit-toolbar{padding:0 28px 12px}
+.item-edit-toolbar>.text-button{font-size:11px;min-height:36px}
+#item-edit-help p{font-size:11px;color:var(--muted);line-height:1.8;margin:6px 0}
+#item-order-status:empty{display:none}
+#item-order-status{color:#245b86!important}
+.item-tag-badge{display:block;width:fit-content;font-size:10px;font-weight:500;color:#456b86;background:#edf4f9;border-radius:4px;padding:2px 6px;margin-top:6px;overflow-wrap:anywhere}
+.row-editor{grid-column:1/-1;display:flex;align-items:center;flex-wrap:wrap;gap:10px 20px;padding:10px 0 3px;border-top:1px dashed #d7e2eb}
+.row-order-controls{display:flex;align-items:center;gap:5px;flex-shrink:0}
+.item-move-handle,.item-move-button{display:inline-flex;align-items:center;justify-content:center;width:36px;height:36px;border:1px solid #d3e0e9;border-radius:5px;background:#f4f8fb;color:#456b86;font-size:16px;padding:0}
+.item-move-handle{touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab;font-size:24px}
+.item-move-handle:active{cursor:grabbing}
+.row-classification{flex:1 1 180px;min-width:0;max-width:450px}
+.row-classification label{font-size:10px;color:var(--muted);display:block;margin-bottom:4px}
+.row-classification select{width:100%;height:38px;max-width:100%;font:12px system-ui;color:#355976;background:white;border:1px solid #cedbe5;border-radius:5px;padding:5px 8px}
+.fixed-category{font-size:11px;color:var(--muted)}
+.cost-row.is-moving{opacity:.65;outline:2px dashed #7d9eb9;outline-offset:-3px;background:#eaf3fa}
+@media(max-width:760px){.item-edit-toolbar{padding:0 0 12px}.item-edit-toolbar>.text-button{min-height:44px}.item-move-handle,.item-move-button{width:44px;height:44px}.row-classification select{height:44px;font-size:16px}.row-editor{gap:10px;padding-top:10px}.row-classification{flex-basis:100%;max-width:none}.item-tag-badge{font-size:10px}}

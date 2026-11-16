@@ -11,13 +11,14 @@
   fields.forEach(([id,label,unit],i)=>{if(i===3)lines.push('【掛率・単価】');lines.push(label+'：'+E.format(s.p[id])+unit);});
   lines.push('【採用額・メモ】');
   const names=new Map(E.items);
-  s.extraItems.forEach((item,i)=>{const name='追加'+(i+1);names.set(item.id,name);lines.push(name+' 名称：'+JSON.stringify(item.label),name+' 金額：'+E.yen(item.amount));});
+  s.extraItems.forEach((item,i)=>{const name='追加'+(i+1);names.set(item.id,name);lines.push(name+' 名称：'+JSON.stringify(item.label),name+' 金額：'+E.yen(item.amount));if(item.tag&&item.tag!=='other')lines.push('タグ '+name+'：'+new Map(E.itemTags).get(item.tag));});
   for(const row of s.rows){
    const name=names.get(row.id);
    lines.push('採用 '+name+'：'+(row.adopted===null?'標準':E.yen(row.adopted)));
    if(s.memos[row.id])lines.push('メモ '+name+'：'+JSON.stringify(s.memos[row.id]));
    if(links[row.id])lines.push('引継 '+name+'：'+E.format(links[row.id].amount)+'/'+E.format(links[row.id].base));
   }
+  if(s.rows.map(row=>row.id).join('|')!==E.defaultOrder(s.extraItems).join('|'))lines.push('表示順：'+s.rows.map(row=>names.get(row.id)).join('／'));
   lines.push('諸経費連動：'+modes[mode],'端数調整：'+(rounded?'あり':'なし'),'見積金額（税別）：'+E.yen(s.total),end);
   const text=lines.join('\n');
   if(s.extraItems.length>100||text.length>50000)throw Error('簡易版は追加100項目・50,000文字までです。');
@@ -52,7 +53,9 @@
   const extraItems=[],names=new Map(E.items);
   for(let i=1;i<=100;i++){
    const key='追加'+i,raw=take(key+' 名称',true);if(raw===undefined)break;
-   const id='custom_'+i;extraItems.push({id,label:quoted(raw,key+' 名称',40),amount:amount(take(key+' 金額'),key)});names.set(id,key);
+   const id='custom_'+i,tagName=take('タグ '+key,true),tag=tagName===undefined?'other':new Map(E.itemTags.map(([code,label])=>[label,code])).get(tagName);
+   if(!tag)throw Error('費目タグを確認してください。');
+   extraItems.push({id,label:quoted(raw,key+' 名称',40),amount:amount(take(key+' 金額'),key),tag});names.set(id,key);
   }
   const adopted={},memos={},links={};
   for(const [id,name] of names){
@@ -71,11 +74,13 @@
   const rounding=take('端数調整');if(!mode||!['あり','なし'].includes(rounding))throw Error('諸経費の連動設定を確認してください。');
   if((mode==='linked')!==!!links.overhead||(mode==='rounded'&&rounding!=='あり'))throw Error('諸経費の連動設定に矛盾があります。');
   const total=amount(take('見積金額（税別）'),'見積金額',true);
+  const orderRaw=take('表示順',true),byName=new Map([...names].map(([id,name])=>[name,id]));
+  const order=orderRaw===undefined?E.defaultOrder(extraItems):orderRaw.split('／').map(name=>byName.get(name));
   if(entries.size)throw Error('未対応の項目があります：'+entries.keys().next().value);
   for(const [id,value] of Object.entries(adopted))if(value!==null&&!links[id]&&!(id==='overhead'&&mode==='rounded')&&E.parse(E.format(value)).error)throw Error('手動採用額の範囲・小数桁を確認してください。');
-  const result=E.calculate(p,adopted,mode,extraItems,links);
+  const result=E.calculate(p,adopted,mode,extraItems,links,order);
   if(result.total!==total||result.rows.some(row=>row.adopted!==adopted[row.id]))throw Error('金額と計算条件が一致しません。コピーした簡易版を省略せず貼り付けてください。');
-  return {p,adopted,memos,extraItems,mode,rounded:rounding==='あり',links,time,result};
+  return {p,adopted,memos,extraItems,mode,rounded:rounding==='あり',links,time,order,result};
  }
  function forImport(data,proportional){
   const links={...data.links};let mode=data.mode;
@@ -86,7 +91,7 @@
     if(base>0n){links[id]={amount:data.adopted[id],base};if(id==='overhead')mode='linked';}
    }
   }
-  return {...data,links,mode,result:E.calculate(data.p,data.adopted,mode,data.extraItems,links)};
+  return {...data,links,mode,result:E.calculate(data.p,data.adopted,mode,data.extraItems,links,data.order)};
  }
 
  const shortNames={parts:'部品',labor:'作業',materials:'資材',shipping:'運搬',removal:'撤去',protection:'養生',overhead:'諸経費'};
@@ -101,11 +106,14 @@
   const fmt=E.format,lines=[`見積${fmt(s.total)}円（税別）｜部品${fmt(s.p.parts)}円・${fmt(s.p.workers)}人・部品送料${fmt(s.p.shipping)}円`,
    `掛率：資材${fmt(s.p.materialsRate)}%／撤去${fmt(s.p.removalRate)}%／養生${fmt(s.p.protectionRate)}%／諸経費${fmt(s.p.overheadRate)}%／福利${fmt(s.p.welfareRate)}%`,
    `単価：作業${fmt(s.p.laborPrice)}円／人・運搬${fmt(s.p.workerShipping)}円／人`];
-  const names={...shortNames};s.extraItems.forEach((item,i)=>names[item.id]='追加'+(i+1));
+  const names={...shortNames};const extrasById=new Map(s.extraItems.map(item=>[item.id,item]));
+  const orderedExtras=s.rows.filter(row=>extrasById.has(row.id)).map(row=>extrasById.get(row.id));
+  orderedExtras.forEach((item,i)=>names[item.id]='追加'+(i+1));
   const entries=s.rows.filter(r=>r.id!=='overhead'&&(r.adopted!==null||s.memos[r.id])).map(r=>names[r.id]+'='+(r.adopted===null?'標準':fmt(r.adopted))+(s.memos[r.id]?'（'+JSON.stringify(s.memos[r.id])+'）':''));
   lines.push('採用：'+(entries.join('／')||'すべて標準'));
   lines.push('諸経費'+(s.rows.find(r=>r.id==='overhead').adopted===null?'標準':fmt(s.overhead))+'（'+modes[mode]+'）｜端数調整'+(rounded?'あり':'なし')+'｜その他は標準'+(s.memos.overhead?'｜メモ：'+JSON.stringify(s.memos.overhead):''));
-  s.extraItems.forEach((item,i)=>lines.push('追加'+(i+1)+'：'+JSON.stringify(item.label)+'／'+fmt(item.amount)+'円'));
+  orderedExtras.forEach((item,i)=>lines.push('追加'+(i+1)+'：'+JSON.stringify(item.label)+'／'+fmt(item.amount)+'円'+(item.tag&&item.tag!=='other'?'〔'+new Map(E.itemTags).get(item.tag)+'〕':'')));
+  if(s.extraItems.length||s.rows.map(row=>row.id).join('|')!==E.defaultOrder().join('|'))lines.push('内訳：'+s.rows.map(row=>names[row.id]+'='+fmt(row.booked)).join('／'));
   if(Object.keys(links).length)lines.push('連動：'+Object.entries(links).map(([id,link])=>names[id]+E.format(link.amount)+'/'+E.format(link.base)).join('／'));
   const text=lines.join('\n');if(s.extraItems.length>100||text.length>50000)throw Error('簡易版は追加100項目・50,000文字までです。');return text;
  }
@@ -121,11 +129,12 @@
   const names=Object.fromEntries(Object.entries(shortNames).map(([id,name])=>[name,fixedLabels[id]]));
   const out=[start,...(header[5]?['出力日時：'+header[5]]:[]),'部品代：'+header[2]+'円','作業人員：'+header[3]+'人','部品送料：'+header[4]+'円',
    '消耗資材費率：'+rates[1]+'％','撤去品引取費率：'+rates[2]+'％','養生・安全対策費率：'+rates[3]+'％','諸経費率：'+rates[4]+'％','法定福利費率：'+rates[5]+'％','交換作業売価単価：'+prices[1]+'円／人','作業員送料単価：'+prices[2]+'円／人'];
-  const rest=lines.slice(5);let linkLine;
+  const rest=lines.slice(5);let linkLine,breakdownLine;
   for(const line of rest){
+   if(line.startsWith('内訳：')){if(breakdownLine!==undefined)throw Error('内訳が重複しています。');breakdownLine=line.slice(3);continue;}
    if(line.startsWith('連動：')){if(linkLine)throw Error('連動設定が重複しています。');linkLine=line.slice(3);continue;}
-   const extra=/^(追加\d+)：("(?:\\.|[^"\\])*")／([\d,.]+)円$/.exec(line);
-   if(!extra||names[extra[1]])throw Error('追加項目の書式を確認してください。');names[extra[1]]=extra[1];out.push(extra[1]+' 名称：'+extra[2],extra[1]+' 金額：'+extra[3]+'円');
+   const extra=/^(追加\d+)：("(?:\\.|[^"\\])*")／([\d,.]+)円(?:〔([^〕]+)〕)?$/.exec(line);
+   if(!extra||names[extra[1]])throw Error('追加項目の書式を確認してください。');names[extra[1]]=extra[1];out.push(extra[1]+' 名称：'+extra[2],extra[1]+' 金額：'+extra[3]+'円');if(extra[4])out.push('タグ '+extra[1]+'：'+extra[4]);
   }
   const adopted=new Map(),memos=new Map();
   if(lines[3]!=='採用：すべて標準')for(const entry of splitEntries(lines[3].slice(3))){
@@ -137,8 +146,18 @@
   adopted.set('諸経費',overhead[1]);if(overhead[4])memos.set('諸経費',overhead[4]);
   for(const [name,label] of Object.entries(names)){const value=adopted.get(name)||'標準';out.push('採用 '+label+'：'+(value==='標準'?value:value+'円'));if(memos.has(name))out.push('メモ '+label+'：'+memos.get(name));}
   if(linkLine)for(const entry of splitEntries(linkLine)){const m=/^(資材|撤去|養生|諸経費)([\d,.]+)\/([\d,.]+)$/.exec(entry);if(!m)throw Error('連動設定の書式を確認してください。');out.push('引継 '+names[m[1]]+'：'+m[2]+'/'+m[3]);}
+  let printedRows=[];
+  if(breakdownLine!==undefined){
+   printedRows=splitEntries(breakdownLine).map(entry=>{const pair=/^(部品|作業|資材|運搬|撤去|養生|諸経費|追加\d+)=([\d,.]+)$/.exec(entry);if(!pair||!names[pair[1]])throw Error('内訳の費目・金額を確認してください。');return {name:pair[1],value:pair[2]};});
+   out.push('表示順：'+printedRows.map(row=>names[row.name]).join('／'));
+  }
   out.push('諸経費連動：'+overhead[2],'端数調整：'+overhead[3],'見積金額（税別）：'+header[1]+'円',end);
-  return decodeV1(out.join('\n'));
+  const data=decodeV1(out.join('\n'));
+  for(let i=0;i<printedRows.length;i++){
+   const raw=printedRows[i].value,cleaned=raw.replaceAll(',','');
+   if(raw.length>40||!/^\d+(?:\.\d{1,12})?$/.test(cleaned)||(raw.includes(',')&&!/^\d{1,3}(?:,\d{3})+(?:\.\d{1,12})?$/.test(raw))||E.decimal(cleaned)!==data.result.rows[i].booked)throw Error('内訳の金額と計算条件が一致しません。');
+  }
+  return data;
  }
  const api={encode,encodeV1,decode,forImport,linkedIds};
  if(typeof module!=='undefined')module.exports=api;else root.EstimatePortable=api;
