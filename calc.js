@@ -76,8 +76,15 @@
     Object.assign(costs,{labor:laborCost,welfare:welfareCost});
     return {rows:arrangeRows(rows,order),subtotal,overhead,welfare,welfareBase,standardWelfareBase,total,standardTotal,diff:total-standardTotal,laborCost,welfareCost,costs};
   }
+  function roundingUnit(value) {return (value>=1000000n*SCALE?1000n:100n)*SCALE;}
+  function needsChangeReview(standard,booked) {
+    if(standard<0n||booked<0n)return false;
+    const diff=booked>=standard?booked-standard:standard-booked;
+    // Compare the exact ratio, not the rounded percentage shown on screen.
+    return diff>=roundingUnit(standard)&&(standard===0n||diff*100n>=standard);
+  }
   function roundStandardAmount(value) {
-    const unit=(value>=1000000n*SCALE?1000n:100n)*SCALE;
+    const unit=roundingUnit(value);
     return value/unit*unit;
   }
   function roundedAdoptions(input,partsAdoption=null,extraItems=[]) {
@@ -93,6 +100,6 @@
     if(amount>total)throw new RangeError('値引額は見積金額以下で入力してください');
     return {amount,after:total-amount,rate:total===0n?'—':ratio(amount,total,2,false).replace(/\.00％$/,'％').replace(/(\.\d)0％$/,'$1％')};
   }
-  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,itemTags,defaultOrder,arrangeRows,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundedAdoptions,calculateDiscount,partsRates};
+  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,itemTags,defaultOrder,arrangeRows,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundingUnit,needsChangeReview,roundedAdoptions,calculateDiscount,partsRates};
   if(typeof module!=='undefined') module.exports=api; else root.Estimate=api;
 })(typeof window!=='undefined'?window:globalThis);

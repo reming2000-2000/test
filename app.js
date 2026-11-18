@@ -315,8 +315,17 @@ function update(){
 function changeLines(r){const p=state.p;return [`標準 ${E.yen(r.standard)} → 採用 ${E.yen(r.adopted)}`,`差額 ${E.signed(r.diff)}　標準比 ${E.ratio(r.diff,r.standard)}`,...(partRatioIds.includes(r.id)?[`部品代比 ${E.ratio(r.booked,p.parts,2,false)}`]:[]),`理由：${state.memos[r.id]||'記入なし'}`];}
 function renderChanges(){
  const changed=state.rows.filter(r=>r.diff!==0n);$('change-count').textContent=state.settingChanges.length?'採用額 '+changed.length+'項目・設定 '+state.settingChanges.length+'項目':changed.length+'項目';$('changes').replaceChildren();
+ $('review-guide').hidden=!changed.length;
  if(!changed.length){const p=document.createElement('p');p.className='empty-changes';p.textContent=state.settingChanges.length?'採用額の変更はありません':'標準設定からの変更はありません';$('changes').append(p);return;}
- for(const r of changed){const article=document.createElement('article');article.className='change-card';const title=document.createElement('h3');title.textContent=r.label;article.append(title);changeLines(r).forEach((line,i)=>{const p=document.createElement('p');p.textContent=line;if(!i)p.className='transition';article.append(p);});$('changes').append(article);}
+ for(const r of changed){
+  const review=!invalid&&E.needsChangeReview(r.standard,r.booked);
+  const article=document.createElement('article');article.className='change-card';article.classList.toggle('needs-review',review);article.dataset.itemId=r.id;
+  const heading=document.createElement('div');heading.className='change-card-heading';
+  const title=document.createElement('h3');title.textContent=r.label;heading.append(title);
+  if(review){const badge=document.createElement('span');badge.className='review-badge';badge.textContent=r.standard===0n?'標準額0円・要確認':'標準比'+E.ratio(r.diff,r.standard)+'・要確認';heading.append(badge);}
+  article.append(heading);
+  changeLines(r).forEach((line,i)=>{const p=document.createElement('p');p.textContent=line;if(!i)p.className='transition';article.append(p);});$('changes').append(article);
+ }
 }
 async function copyRow(button){
  if(invalid||copyingButtons.has(button))return;

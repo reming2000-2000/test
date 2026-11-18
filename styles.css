@@ -176,3 +176,10 @@
 .fixed-category{font-size:11px;color:var(--muted)}
 .cost-row.is-moving{opacity:.65;outline:2px dashed #7d9eb9;outline-offset:-3px;background:#eaf3fa}
 @media(max-width:760px){.item-edit-toolbar{padding:0 0 12px}.item-edit-toolbar>.text-button{min-height:44px}.item-move-handle,.item-move-button{width:44px;height:44px}.row-classification select{height:44px;font-size:16px}.row-editor{gap:10px;padding-top:10px}.row-classification{flex-basis:100%;max-width:none}.item-tag-badge{font-size:10px}}
+
+.review-guide{font-size:11px;color:var(--muted);line-height:1.8;margin:0 0 14px}
+.change-card-heading{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:6px 12px;margin-bottom:6px}
+.change-card-heading h3{margin:0}
+.change-card.needs-review{border-color:#d3aaa1;border-left-color:#b66b5c;background:#fff8f6}
+.review-badge{display:inline-block;border-radius:4px;padding:3px 7px;background:#f8e7e2;color:#914c40;font-size:11px;line-height:1.6}
+@media(max-width:760px){.review-guide{font-size:10px}.review-badge{font-size:10px}}
