@@ -3,7 +3,7 @@ const E=window.Estimate;
 const $=id=>document.getElementById(id);
 function catFeedback(type){document.dispatchEvent(new CustomEvent('estimate:feedback',{detail:{type}}));}
 const basic=[['parts','部品代','円','money'],['workers','作業人員','人','decimal'],['shipping','部品送料','円','money']];
-const settings=[['materialsRate','消耗資材費率','％','rate'],['removalRate','撤去品引取費率','％','rate'],['protectionRate','養生・安全対策費率','％','rate'],['laborPrice','交換作業売価単価','円／人','money'],['workerShipping','作業員送料単価','円／人','money'],['overheadRate','諸経費率','％','rate'],['welfareRate','法定福利費率','％','rate']];
+const settings=[['materialsRate','消耗資材費率','％','rate'],['removalRate','撤去品引取費率','％','rate'],['protectionRate','養生・安全対策費率','％','rate'],['laborPrice','交換作業売価単価','円／人','money'],['workerShipping','作業員交通費単価','円／人','money'],['overheadRate','諸経費率','％','rate'],['welfareRate','法定福利費率','％','rate']];
 const partRatioIds=['materials','removal','protection','shipping'];
 const descriptors=[...basic,...settings];
 let customItems=[],nextCustomId=1;
@@ -50,16 +50,30 @@ function renderPartsRateModes(){
 }
 $('reset-parts-rates').addEventListener('click',()=>{finishItemDrag(true,false);invalidateRoundUndo();resetPartsRateModes();syncPartsRates();update();});
 const copyIcon='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="8" y="8" width="12" height="13" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"></path></svg>';
+// Decorative inline SVGs: fixed local paths, never interactive or included in copies.
+const expenseIconPaths={
+ parts:'<path d="m12 3 9 5-9 5-9-5 9-5Z M3 8v9l9 5 9-5V8 M12 13v9 M7.5 5.5l9 5"/>',
+ labor:'<path d="M14 6a5 5 0 0 0-6 6L3 17a2.8 2.8 0 0 0 4 4l5-5a5 5 0 0 0 6-6l-3 3-4-4 3-3Z"/>',
+ materials:'<path d="m12 3 10 5-10 5L2 8l10-5Z M2 12l10 5 10-5 M2 16l10 5 10-5"/>',
+ shipping:'<path d="M3 5h11v12H3V5Z M14 9h4l3 4v4h-7 M14 13h7"/><circle cx="7" cy="18" r="2"/><circle cx="18" cy="18" r="2"/>',
+ removal:'<path d="M4 8a8 8 0 0 1 14-3l2 3 M20 3v5h-5 M20 16a8 8 0 0 1-14 3l-2-3 M4 21v-5h5"/>',
+ protection:'<path d="m12 3 8 3v6c0 5-8 9-8 9s-8-4-8-9V6l8-3Z m-4 9 3 3 5-6"/>',
+ overhead:'<path d="M6 3h12v18l-3-2-3 2-3-2-3 2V3Z M9 7h6 M9 11h6 M9 15h3"/>',
+ welfare:'<circle cx="9" cy="7" r="3"/><path d="M3 21v-3a6 6 0 0 1 12 0v3 M16 4a3 3 0 0 1 0 6 M18 13a5 5 0 0 1 3 5v3"/>',
+ other:'<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8 M8 12h8 M8 16h5"/>'
+};
+function expenseIcon(tag){const key=Object.hasOwn(expenseIconPaths,tag)?tag:'other';return `<span class="expense-icon" data-icon="${key}" aria-hidden="true"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" focusable="false">${expenseIconPaths[key]}</svg></span>`;}
+$('welfare-heading').insertAdjacentHTML('afterbegin',expenseIcon('welfare'));
 function rowCopyButton(id,label,kind){return `<button type="button" class="row-copy-button" id="copy-${kind}-${id}" data-copy="${kind}" data-item="${id}" aria-label="${label}の${kind==='cost'?'参考原価':kind==='amount'?'見積計上額':'算定根拠'}をコピー">${copyIcon}</button>`;}
 function createCostRow(id,label,custom=false){
  const row=document.createElement('article');row.className='cost-row'+(custom?' custom-cost-row':'');row.id='row-'+id;row.setAttribute('aria-label',label);
  row.innerHTML=`
- <div class="cost-title">${custom?'<div class="custom-name-line"><label for="custom-name-'+id+'" class="custom-label">追加項目</label><button type="button" class="custom-remove" data-remove-custom="'+id+'" aria-label="'+label+'を削除">削除</button></div><input id="custom-name-'+id+'" class="custom-name-input" type="text" maxlength="40" placeholder="例：試運転調整費" aria-label="'+label+'の名称">':'<span class="cost-name">'+label+'</span>'}${id==='overhead'?'<div class="overhead-controls"><span id="overhead-mode-label" class="tag"></span><button id="overhead-auto" type="button" class="overhead-auto" hidden>自動に戻す</button></div>':''}
+ <div class="cost-title">${custom?'<div class="custom-name-line"><label for="custom-name-'+id+'" class="custom-label cost-heading">'+expenseIcon('other')+'追加項目</label><button type="button" class="custom-remove" data-remove-custom="'+id+'" aria-label="'+label+'を削除">削除</button></div><input id="custom-name-'+id+'" class="custom-name-input" type="text" maxlength="40" placeholder="例：試運転調整費" aria-label="'+label+'の名称">':'<span class="cost-heading">'+expenseIcon(id)+'<span class="cost-name">'+label+'</span></span>'}${id==='overhead'?'<div class="overhead-controls"><span id="overhead-mode-label" class="tag"></span><button id="overhead-auto" type="button" class="overhead-auto" hidden>自動に戻す</button></div>':''}
   <span id="item-tag-${id}" class="item-tag-badge" hidden></span><div class="basis-inline"><span id="basis-${id}" class="basis"></span>${rowCopyButton(id,label,'basis')}</div>
  </div>
  ${custom?'<div class="money-cell standard-cell"><label class="custom-label" for="custom-amount-'+id+'">金額（円）</label><input id="custom-amount-'+id+'" type="text" data-kind="money" inputmode="decimal" value="0" aria-label="'+label+'の金額（円）" aria-describedby="custom-amount-'+id+'-error"><span id="custom-amount-'+id+'-error" class="input-error"></span></div>':'<div class="money-cell standard-cell"><span class="cell-label">標準額</span><span id="standard-'+id+'"></span></div>'}
  <div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span><small id="link-help-${id}" class="link-help" hidden></small><small id="fixed-adoption-${id}" class="fixed-adoption" title="採用額を空欄にすると標準額に戻ります" hidden>採用額を固定中</small>${id==='overhead'?'<small id="overhead-help" class="overhead-help">入力で手動固定・空欄で自動に戻る</small>':''}</div>
- <div class="money-cell booked-cell"><span class="cell-label">見積計上額</span><div class="amount-inline"><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount')}</div>${E.expenseCostIds.includes(id)||id==='labor'?'<div class="expense-cost-line" id="cost-info-'+id+'" title="'+(id==='labor'?'作業人員×36,000円、1円未満切り捨て':'見積計上額×62％（利益率38％）、1円未満切り捨て')+'"><span>参考原価</span><span id="'+(id==='labor'?'labor-cost':'cost-'+id)+'"></span>'+rowCopyButton(id,label,'cost')+'</div>':''}</div>
+ <div class="money-cell booked-cell"><span class="cell-label">見積計上額</span><div class="amount-inline"><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount')}</div>${E.expenseCostIds.includes(id)||id==='labor'?'<div class="expense-cost-line" id="cost-info-'+id+'" title="'+(id==='labor'?'作業人員×36,000円、1円未満切り捨て':'見積計上額×62％（利益率38％）、1円未満切り捨て')+'"><span>参考原価</span><span id="'+(id==='labor'?'labor-cost':'cost-'+id)+'"></span>'+rowCopyButton(id,label,'cost')+'</div>':''}${id==='labor'?'<p id="labor-cost-warning" class="cost-warning" role="status" hidden>参考原価を下回っています</p>':''}</div>
  <div id="adjustment-${id}" class="adjustment-summary" hidden><span>標準からの補正</span><strong id="diff-${id}"></strong><span id="ratio-${id}"></span></div>
  ${itemEditorMarkup(id,custom)}
  <details id="detail-${id}" class="row-details"><summary>詳細・メモ</summary><div class="row-details-content"><p id="parts-ratio-${id}" class="detail-ratio"></p><label class="memo-label" for="memo-${id}">補正理由・メモ <span>任意</span></label><input class="note-input" id="memo-${id}" maxlength="100" placeholder="理由を入力" aria-label="${label}の補正理由・メモ"></div></details>
@@ -274,6 +288,7 @@ function update(){
   $('ratio-'+r.id).textContent=r.adopted!==null?'標準比 '+E.ratio(r.diff,r.standard):'';
   $('parts-ratio-'+r.id).textContent=partRatioIds.includes(r.id)?'部品代比 '+E.ratio(r.booked,p.parts,2,false):'';
   const row=$('row-'+r.id);row.dataset.itemTag=r.tag;
+  const icon=row.querySelector('.expense-icon');if(icon.dataset.icon!==r.tag)icon.outerHTML=expenseIcon(r.tag);
   const wasChanged=row.classList.contains('changed'),changed=r.diff!==0n;
   row.classList.toggle('changed',changed);
   $('adjustment-'+r.id).hidden=!changed;
@@ -291,6 +306,7 @@ function update(){
   $('row-copy-feedback-'+r.id).replaceChildren();
  }
  $('cost-info-labor').title=`作業人員 ${E.format(p.workers)}人 × ${E.yen(E.laborCostPrice)} ＝ ${E.yen(result.laborCost)}（1円未満切り捨て）`;
+ $('labor-cost-warning').hidden=invalid||result.rows.find(row=>row.id==='labor').booked>=result.laborCost;
  for(const id of ['subtotal','welfare'])$(id).textContent=E.yen(result[id]);
  $('welfare-cost').textContent=E.yen(result.welfareCost);
  $('cost-info-welfare').title=`法定福利費 ${E.yen(result.welfare)} × 0.66 ＝ ${E.yen(result.welfareCost)}（1円未満切り捨て）`;
