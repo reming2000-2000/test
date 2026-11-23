@@ -71,8 +71,9 @@ with sync_playwright() as p:
  prepare(compact,False);apply();assert page.locator('#grand-total').inner_text()==original
  fill('parts','1700000');assert page.locator('#booked-materials').inner_text()=='70,000円'
  assert page.locator('#overhead-warning').is_visible()
- # Auto rounded overhead retains its mode through a round trip; batch rounding cancels links.
- prepare(compact);apply();page.locator('#round-standard').click();assert page.locator('#link-help-materials').is_hidden()
+ # Rounding protects inherited links; automatic rounded overhead still round-trips.
+ prepare(compact);apply();page.locator('#round-standard').click();expect(page.locator('#link-help-materials')).to_be_visible()
+ prepare(compact,False);apply();fill('adopt-overhead','');page.locator('#round-standard').click()
  rounded_total=page.locator('#grand-total').inner_text();rounded=copy();prepare(rounded,False);apply()
  assert page.locator('#grand-total').inner_text()==rounded_total
  expect(page.locator('#overhead-mode-label')).to_have_text('自動連動・端数調整')

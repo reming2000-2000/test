@@ -48,9 +48,9 @@ with sync_playwright() as p:
  page.locator('#preview').click();assert '<img src=x onerror=alert(1)>' in page.locator('#summary-text').inner_text()
  fill('custom-name-custom_1','試運転調整費')
  fill('custom-amount-custom_1','50055.9');page.locator('#round-standard').click()
- assert page.locator('#adopt-custom_1').input_value()=='50,000'
- assert page.locator('#booked-overhead').inner_text()=='56,200円'
- fill('adopt-custom_2','13123');assert page.locator('#booked-overhead').inner_text()=='56,300円'
+ assert page.locator('#adopt-custom_1').input_value()=='60,000'
+ assert page.locator('#booked-overhead').inner_text()=='57,200円'
+ fill('adopt-custom_2','13123');assert page.locator('#booked-overhead').inner_text()=='57,300円'
  fill('adopt-overhead','55000')
  page.locator('[data-remove-custom="custom_1"]').click()
  assert page.locator('#row-custom_1').count()==0

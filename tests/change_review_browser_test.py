@@ -81,10 +81,10 @@ with sync_playwright() as p:
     expect(page.locator('#validation-banner')).to_be_visible()
     expect(page.locator('#copy-text')).to_be_disabled()
     fill('workers', '6'); check('materials', True)
-    # The rounding button clears large fixed corrections; undo restores them.
+    # Rounding preserves the fixed correction and its review indicator; undo restores the rest.
     before = snapshot()
     page.locator('#round-standard').click()
-    assert page.locator('.needs-review').count() == 0
+    check('materials', True)
     page.locator('#undo-round').click(); assert snapshot() == before
 
     # Automatic rounding of small values creates blue cards, even above 1%.

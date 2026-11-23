@@ -10,6 +10,7 @@ let customItems=[],nextCustomId=1;
 let rowOrder=E.defaultOrder(),editingItems=false,itemDrag=null;
 let rateLinks={};
 let roundUndo=null,copyEpoch=0,updateRevision=0;
+let roundedItems=new Set(); // Only adoptions written by rounding in this page session.
 const copiedValues=new Map();
 let settingSources={};
 const partsRateIds=["materialsRate","removalRate"];
@@ -172,14 +173,14 @@ const copyingButtons=new Set();
 const copyFeedbackTimers=new Map();
 // Transient UI state only. These helpers never change the calculation formulas.
 function invalidateRoundUndo(){roundUndo=null;$('undo-round').hidden=true;$('undo-round-help').hidden=true;}
-function resetWorkflow(){finishItemDrag(true,false);editingItems=false;$('item-order-status').textContent='';invalidateRoundUndo();copiedValues.clear();copyEpoch++;settingSources={};}
+function resetWorkflow(){finishItemDrag(true,false);editingItems=false;$('item-order-status').textContent='';invalidateRoundUndo();roundedItems.clear();$('adjustment-breakdown').open=false;copiedValues.clear();copyEpoch++;settingSources={};}
 function captureRoundState(){
- return {adopted:Object.fromEntries(itemDefinitions().map(([id])=>[id,$('adopt-'+id).value])),links:structuredClone(rateLinks),rounded:overheadRounded,manual:overheadManual,basis:overheadFixedBasis,details:Object.fromEntries(itemDefinitions().map(([id])=>[id,$('detail-'+id).open]))};
+ return {adopted:Object.fromEntries(itemDefinitions().map(([id])=>[id,$('adopt-'+id).value])),roundedItems:new Set(roundedItems),links:structuredClone(rateLinks),rounded:overheadRounded,manual:overheadManual,basis:overheadFixedBasis,details:Object.fromEntries(itemDefinitions().map(([id])=>[id,$('detail-'+id).open]))};
 }
 $('undo-round').addEventListener('click',()=>{
  if(!roundUndo)return;const saved=roundUndo;invalidateRoundUndo();
  for(const [id,value] of Object.entries(saved.adopted))$('adopt-'+id).value=value;
- rateLinks=saved.links;overheadRounded=saved.rounded;overheadManual=saved.manual;overheadFixedBasis=saved.basis;
+ roundedItems=saved.roundedItems;rateLinks=saved.links;overheadRounded=saved.rounded;overheadManual=saved.manual;overheadFixedBasis=saved.basis;
  update();for(const [id,open] of Object.entries(saved.details))$('detail-'+id).open=open;
  $('round-notice').textContent='端数調整前の採用額・諸経費の連動状態に戻しました。';
 });
@@ -301,6 +302,8 @@ function update(){
  $('welfare-basis').textContent=extraLabor?`対象作業費合計 ${E.yen(result.welfareBase)} × ${E.format(p.welfareRate)}％・1円未満切り捨て`:`採用交換作業費 × ${E.format(p.welfareRate)}％・1円未満切り捨て`;
  $('welfare-basis').title=result.rows.filter(row=>row.tag==='labor').map(row=>row.label+'：'+E.yen(row.booked)).join('／');
  $('grand-total').textContent=E.yen(result.total);$('standard-total').textContent=E.yen(result.standardTotal);$('current-total').textContent=E.yen(result.total);$('total-diff').textContent=E.signed(result.diff);diffClass($('total-diff'),result.diff);$('total-rate').textContent=E.ratio(result.diff,result.standardTotal,2);
+ const breakdown=E.adjustmentBreakdown(result,p);
+ for(const id of ['direct','overhead','welfare','total'])$('correction-'+id).textContent=invalid?'—':E.signed(breakdown[id]);
  updateDiscounts();
  renderSettingChanges();renderChanges();$('validation-banner').hidden=!invalid;
  for(const id of ['save-image','copy-text','copy-simple','preview','round-standard'])$(id).disabled=invalid;
@@ -356,6 +359,7 @@ $('estimate-form').addEventListener('click',event=>{
  if(remove){
   invalidateRoundUndo();
   const id=remove.dataset.removeCustom;
+  roundedItems.delete(id);
   clearTimeout(copyFeedbackTimers.get(id));copyFeedbackTimers.delete(id);
   finishItemDrag(true,false);customItems=customItems.filter(item=>item.id!==id);rowOrder=rowOrder.filter(item=>item!==id);$('row-'+id).remove();syncRowDOM();update();$('add-custom-item').focus();return;
  }
@@ -368,7 +372,7 @@ $('estimate-form').addEventListener('input',event=>{
  if(settings.some(([id])=>id===event.target.id))settingSources[event.target.id]='manual';
  if(partsRateIds.includes(event.target.id))partsRateModes[event.target.id]='manual';
  if(event.target.id==='parts')syncPartsRates();
- if(event.target.id.startsWith('adopt-'))delete rateLinks[event.target.id.slice(6)];
+ if(event.target.id.startsWith('adopt-')){const id=event.target.id.slice(6);delete rateLinks[id];roundedItems.delete(id);}
  const settingLink={materialsRate:'materials',removalRate:'removal',protectionRate:'protection',overheadRate:'overhead'}[event.target.id];
  if(settingLink&&rateLinks[settingLink]){delete rateLinks[settingLink];$('adopt-'+settingLink).value='';}
  if(event.target.id==='adopt-overhead'){
@@ -391,16 +395,21 @@ $('estimate-form').addEventListener('focusin',e=>{
 $('estimate-form').addEventListener('focusout',e=>{const el=e.target;if(!el.dataset.kind)return;const r=E.parse(el.value,el.dataset.kind,el.dataset.optional==='true');if(!r.error && el.value.trim() && r.value!==null)el.value=E.format(r.value);});
 $('round-standard').addEventListener('click',()=>{
  if(invalid)return;
- const adopted=E.roundedAdoptions(state.p,state.rows.find(row=>row.id==='parts').adopted,state.extraItems);
- if(Object.values(adopted).some(value=>value>1000000000000n*E.SCALE)){
+ const targets=state.rows.filter(row=>row.id!=='parts'&&row.id!=='overhead'&&!rateLinks[row.id]&&(row.adopted===null||roundedItems.has(row.id)));
+ const adopted=Object.fromEntries(state.rows.map(row=>[row.id,row.adopted]));
+ for(const row of targets)adopted[row.id]=E.roundStandardAmount(row.standard);
+ const keepOverhead=overheadManual||!!rateLinks.overhead;
+ const preview=E.calculate(state.p,adopted,keepOverhead?overheadMode():'rounded',state.extraItems,rateLinks,rowOrder);
+ const limit=1000000000000n*E.SCALE;
+ if(targets.some(row=>adopted[row.id]>limit)||(!keepOverhead&&preview.overhead>limit)){
   $('round-notice').textContent='計算結果が採用額の入力上限（1兆円）を超えるため、一括入力できません。基本入力・標準設定を確認してください。';return;
  }
  if(!roundUndo)roundUndo=captureRoundState();
- rateLinks={};
- for(const [id,value] of Object.entries(adopted))if(id!=='overhead')$('adopt-'+id).value=E.format(value);
- overheadRounded=true;overheadManual=false;overheadFixedBasis=null;
+ const kept=state.rows.filter(row=>row.id!=='parts'&&(row.id==='overhead'?keepOverhead:!targets.includes(row))).length;
+ for(const row of targets){$('adopt-'+row.id).value=E.format(adopted[row.id]);roundedItems.add(row.id);}
+ if(!keepOverhead){overheadRounded=true;overheadFixedBasis=null;}
  update();
- $('round-notice').textContent='部品代以外の標準額の端数を調整して、採用額に一括入力しました。';
+ $('round-notice').textContent='端数調整を実行しました。'+(kept?'手動・復元設定済みの'+kept+'項目は変更していません。':'');
  catFeedback('round');
 });
 function resetDiscounts(){for(const mode of ['rate','amount'])$('discount-'+mode).value='';}

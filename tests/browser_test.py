@@ -123,7 +123,7 @@ with sync_playwright() as p:
  assert page.locator('#grand-total').inner_text()=='311,615円'
  assert page.locator('#memo-parts').input_value()=='端数調整のメモ'
  assert page.locator('#welfare-cost').inner_text()=='9,368円'
- assert '一括入力しました' in page.locator('#round-notice').inner_text()
+ assert '端数調整を実行しました' in page.locator('#round-notice').inner_text()
  first_values=page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')
  page.locator('#round-standard').click()
  assert page.locator('[id^="adopt-"]').evaluate_all('(els)=>els.map(el=>el.value)')==first_values

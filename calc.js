@@ -76,6 +76,15 @@
     Object.assign(costs,{labor:laborCost,welfare:welfareCost});
     return {rows:arrangeRows(rows,order),subtotal,overhead,welfare,welfareBase,standardWelfareBase,total,standardTotal,diff:total-standardTotal,laborCost,welfareCost,costs};
   }
+  function adjustmentBreakdown(result,p) {
+    const direct=result.rows.filter(row=>row.id!=='overhead').reduce((sum,row)=>sum+row.diff,0n);
+    // The baseline uses all standard direct costs, before any adopted amounts.
+    const standardSubtotal=result.rows.filter(row=>row.id!=='overhead').reduce((sum,row)=>sum+row.standard,0n);
+    const standardWelfare=percent(result.standardWelfareBase,p.welfareRate)/SCALE*SCALE;
+    const standardOverhead=result.standardTotal-standardSubtotal-standardWelfare;
+    const overhead=result.overhead-standardOverhead,welfare=result.welfare-standardWelfare;
+    return {direct,overhead,welfare,total:direct+overhead+welfare};
+  }
   function roundingUnit(value) {return (value>=1000000n*SCALE?1000n:100n)*SCALE;}
   function needsChangeReview(standard,booked) {
     if(standard<0n||booked<0n)return false;
@@ -100,6 +109,6 @@
     if(amount>total)throw new RangeError('値引額は見積金額以下で入力してください');
     return {amount,after:total-amount,rate:total===0n?'—':ratio(amount,total,2,false).replace(/\.00％$/,'％').replace(/(\.\d)0％$/,'$1％')};
   }
-  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,itemTags,defaultOrder,arrangeRows,decimal,parse,format,yen,signed,ratio,calculate,copyBasis,roundStandardAmount,roundingUnit,needsChangeReview,roundedAdoptions,calculateDiscount,partsRates};
+  const api={SCALE,expenseCostIds,laborCostPrice,defaults,items,itemTags,defaultOrder,arrangeRows,decimal,parse,format,yen,signed,ratio,calculate,adjustmentBreakdown,copyBasis,roundStandardAmount,roundingUnit,needsChangeReview,roundedAdoptions,calculateDiscount,partsRates};
   if(typeof module!=='undefined') module.exports=api; else root.Estimate=api;
 })(typeof window!=='undefined'?window:globalThis);

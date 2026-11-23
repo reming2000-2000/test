@@ -99,7 +99,7 @@ with sync_playwright() as p:
   if mode=='manual':assert page.locator('#overhead-warning').is_visible()
  # Undo restores rational links, not just the visible adopted numbers.
  reset();base();fill('adopt-materials','70000');fill('adopt-overhead','100000');linked=simple_copy();restore(linked)
- before=snapshot();round_();assert page.locator('#link-help-materials').is_hidden()
+ before=snapshot();round_();expect(page.locator('#link-help-materials')).to_be_visible()
  page.locator('#undo-round').click();assert snapshot()==before
  expect(page.locator('#link-help-materials')).to_be_visible();expect(page.locator('#link-help-overhead')).to_be_visible()
  assert page.locator('#fixed-adoption-materials').is_hidden()

@@ -183,3 +183,15 @@
 .change-card.needs-review{border-color:#d3aaa1;border-left-color:#b66b5c;background:#fff8f6}
 .review-badge{display:inline-block;border-radius:4px;padding:3px 7px;background:#f8e7e2;color:#914c40;font-size:11px;line-height:1.6}
 @media(max-width:760px){.review-guide{font-size:10px}.review-badge{font-size:10px}}
+
+.adjustment-breakdown{font-size:12px;margin:0 0 9px}
+.adjustment-breakdown summary{display:flex;align-items:center;justify-content:space-between;gap:16px;cursor:pointer;list-style:none;min-height:32px;border-radius:3px}
+.adjustment-breakdown summary::-webkit-details-marker{display:none}
+.adjustment-breakdown summary:focus-visible{outline:2px solid #245b86;outline-offset:3px}
+.breakdown-chevron{display:inline-block;margin-left:4px;color:#61778b}
+.adjustment-breakdown[open] .breakdown-chevron{transform:rotate(180deg)}
+.adjustment-breakdown dl{margin:4px 0 12px;padding:8px 10px;border:1px solid #ccdeeb;border-radius:5px;background:#f5f9fc;font-size:11px}
+.adjustment-breakdown dl>div{display:flex;justify-content:space-between;gap:12px;margin:5px 0}
+.adjustment-breakdown dt{font-weight:400}.adjustment-breakdown dd{margin:0;text-align:right;overflow-wrap:anywhere;min-width:0;font-variant-numeric:tabular-nums}
+.adjustment-breakdown .adjustment-sum{border-top:1px solid #ccdeeb;padding-top:7px;font-weight:600}
+@media(max-width:760px){.adjustment-breakdown{font-size:11px}.adjustment-breakdown summary{min-height:44px}}
