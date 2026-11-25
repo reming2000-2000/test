@@ -24,6 +24,7 @@ with sync_playwright() as p:
  fill('adopt-overhead','100000')
  original=page.locator('#grand-total').inner_text();compact=copy()
  assert len(compact.splitlines())<40
+ assert '資材=70,000(8.24%)' in compact and '\n内訳：' not in compact
  assert '1.5人' in compact and '特殊部品・値引き交渉後' in compact and '試運転調整費' in compact and '日本時間' not in compact and '出力日時' not in compact
  # Checking doesn't mutate the current estimate. Invalid text keeps every input intact.
  fill('parts','1000');before=page.locator('#grand-total').inner_text()
@@ -39,7 +40,7 @@ with sync_playwright() as p:
   if width in [1440,390]:page.locator('#import-panel').screenshot(path=str(ART/f'compact-import-{width}.png'))
  apply();assert page.locator('#grand-total').inner_text()==original
  assert page.locator('#workers').input_value()=='1.5'
- old_compact=compact.replace('\n','｜2026/11/10 09:05:59（日本時間）\n',1)
+ old_compact=compact.replace('(8.24%)','').replace('\n','｜2026/11/10 09:05:59（日本時間）\n',1)
  prepare(old_compact);assert '出力日時：2026/11/10 09:05:59（日本時間）' in page.locator('#import-summary').inner_text()
  apply();assert page.locator('#grand-total').inner_text()==original
  assert page.locator('#memo-materials').input_value()=='特殊部品・値引き交渉後'
@@ -69,6 +70,9 @@ with sync_playwright() as p:
  assert page.locator('#link-help-materials').is_hidden()
  # Restore original fixed amounts by unchecking the proportional option.
  prepare(compact,False);apply();assert page.locator('#grand-total').inner_text()==original
+ expect(page.locator('#fixed-adoption-materials')).to_be_visible()
+ expect(page.locator('#row-overhead')).to_have_attribute('data-overhead-mode','manual')
+ assert copy()==compact
  fill('parts','1700000');assert page.locator('#booked-materials').inner_text()=='70,000円'
  assert page.locator('#overhead-warning').is_visible()
  # Rounding protects inherited links; automatic rounded overhead still round-trips.

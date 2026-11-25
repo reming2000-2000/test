@@ -25,7 +25,7 @@
   return text;
  }
  function decodeV1(text){
-  if(typeof text!=='string'||text.length>50000)throw Error('簡易版は50,000文字以内で貼り付けてください。');
+  // decode() checks the pasted length. Expanded compact data can be longer internally.
   const lines=text.replace(/\r\n?/g,'\n').split('\n').map(line=>line.trim());
   const begin=lines.indexOf(start),finish=lines.indexOf(end);
   if(begin<0||finish<=begin||lines.lastIndexOf(start)!==begin||lines.lastIndexOf(end)!==finish)throw Error('「NekoAssist 簡易シート v1」から「終了」までを貼り付けてください。');
@@ -96,6 +96,12 @@
 
  const shortNames={parts:'部品',labor:'作業',materials:'資材',shipping:'運搬',removal:'撤去',protection:'養生',overhead:'諸経費'};
  const fixedLabels=Object.fromEntries(E.items);
+ const effectiveRateIds=['materials','removal','protection'];
+ function effectiveRate(row,parts){
+  if(!effectiveRateIds.includes(row.id)||row.adopted===null||row.booked===row.standard||parts===0n)return '';
+  const rate=E.ratio(row.booked,parts,2,false).slice(0,-1).replace(/0+$/,'').replace(/\.$/,'');
+  return '('+rate+'%)';
+ }
  function splitEntries(text){
   const entries=[];let current='',quoted=false,escaped=false;
   for(const ch of text){if(ch==='／'&&!quoted){entries.push(current);current='';continue;}current+=ch;if(escaped){escaped=false;continue;}if(ch==='\\'&&quoted){escaped=true;continue;}if(ch==='"')quoted=!quoted;}
@@ -109,11 +115,17 @@
   const names={...shortNames};const extrasById=new Map(s.extraItems.map(item=>[item.id,item]));
   const orderedExtras=s.rows.filter(row=>extrasById.has(row.id)).map(row=>extrasById.get(row.id));
   orderedExtras.forEach((item,i)=>names[item.id]='追加'+(i+1));
-  const entries=s.rows.filter(r=>r.id!=='overhead'&&(r.adopted!==null||s.memos[r.id])).map(r=>names[r.id]+'='+(r.adopted===null?'標準':fmt(r.adopted))+(s.memos[r.id]?'（'+JSON.stringify(s.memos[r.id])+'）':''));
+  const entries=s.rows.filter(row=>row.id!=='overhead'&&(row.adopted!==null||s.memos[row.id])).map(row=>{
+   const adoption=row.adopted===null?'標準':fmt(row.adopted);
+   const memo=s.memos[row.id]?'（'+JSON.stringify(s.memos[row.id])+'）':'';
+   return names[row.id]+'='+adoption+effectiveRate(row,s.p.parts)+memo;
+  });
   lines.push('採用：'+(entries.join('／')||'すべて標準'));
   lines.push('諸経費'+(s.rows.find(r=>r.id==='overhead').adopted===null?'標準':fmt(s.overhead))+'（'+modes[mode]+'）｜端数調整'+(rounded?'あり':'なし')+'｜その他は標準'+(s.memos.overhead?'｜メモ：'+JSON.stringify(s.memos.overhead):''));
   orderedExtras.forEach((item,i)=>lines.push('追加'+(i+1)+'：'+JSON.stringify(item.label)+'／'+fmt(item.amount)+'円'+(item.tag&&item.tag!=='other'?'〔'+new Map(E.itemTags).get(item.tag)+'〕':'')));
-  if(s.extraItems.length||s.rows.map(row=>row.id).join('|')!==E.defaultOrder().join('|'))lines.push('内訳：'+s.rows.map(row=>names[row.id]+'='+fmt(row.booked)).join('／'));
+  // Extra definitions already appear in display order. Only other moves need a breakdown.
+  const defaultOrder=E.defaultOrder(orderedExtras);
+  if(s.rows.some((row,i)=>row.id!==defaultOrder[i]))lines.push('内訳：'+s.rows.map(row=>names[row.id]+'='+fmt(row.booked)).join('／'));
   if(Object.keys(links).length)lines.push('連動：'+Object.entries(links).map(([id,link])=>names[id]+E.format(link.amount)+'/'+E.format(link.base)).join('／'));
   const text=lines.join('\n');if(s.extraItems.length>100||text.length>50000)throw Error('簡易版は追加100項目・50,000文字までです。');return text;
  }
@@ -138,10 +150,12 @@
   }
   const adopted=new Map(),memos=new Map();
   if(lines[3]!=='採用：すべて標準')for(const entry of splitEntries(lines[3].slice(3))){
-   // Parse the quoted memo separately so punctuation inside it is retained.
-   const clean=/^(部品|作業|資材|運搬|撤去|養生|追加\d+)=(標準|[\d,.]+)(?:（("(?:\\.|[^"\\])*"）))?$/.exec(entry);
+   // The optional percentage is display-only; retain the exact amount and quoted memo.
+   const clean=/^(部品|作業|資材|運搬|撤去|養生|追加\d+)=(標準|[\d,.]+)(?:\((\d+(?:\.\d{1,2})?)%\))?(?:（("(?:\\.|[^"\\])*")）)?$/.exec(entry);
    if(!clean||!names[clean[1]]||adopted.has(clean[1]))throw Error('採用額の書式・重複を確認してください。');
-   adopted.set(clean[1],clean[2]);if(clean[3])memos.set(clean[1],clean[3].slice(0,-1));
+   const [,name,adoption,rate,memo]=clean;
+   if(rate!==undefined&&(adoption==='標準'||!effectiveRateIds.some(id=>shortNames[id]===name)))throw Error('実質掛率の記載箇所を確認してください。');
+   adopted.set(name,adoption);if(memo)memos.set(name,memo);
   }
   adopted.set('諸経費',overhead[1]);if(overhead[4])memos.set('諸経費',overhead[4]);
   for(const [name,label] of Object.entries(names)){const value=adopted.get(name)||'標準';out.push('採用 '+label+'：'+(value==='標準'?value:value+'円'));if(memos.has(name))out.push('メモ '+label+'：'+memos.get(name));}
