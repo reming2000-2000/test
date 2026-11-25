@@ -187,7 +187,7 @@ const copyingButtons=new Set();
 const copyFeedbackTimers=new Map();
 // Transient UI state only. These helpers never change the calculation formulas.
 function invalidateRoundUndo(){roundUndo=null;$('undo-round').hidden=true;$('undo-round-help').hidden=true;}
-function resetWorkflow(){finishItemDrag(true,false);editingItems=false;$('item-order-status').textContent='';invalidateRoundUndo();roundedItems.clear();$('adjustment-breakdown').open=false;copiedValues.clear();copyEpoch++;settingSources={};}
+function resetWorkflow(){finishItemDrag(true,false);window.CompanyImportUI?.reset();editingItems=false;$('item-order-status').textContent='';invalidateRoundUndo();roundedItems.clear();$('adjustment-breakdown').open=false;copiedValues.clear();copyEpoch++;settingSources={};}
 function captureRoundState(){
  return {adopted:Object.fromEntries(itemDefinitions().map(([id])=>[id,$('adopt-'+id).value])),roundedItems:new Set(roundedItems),links:structuredClone(rateLinks),rounded:overheadRounded,manual:overheadManual,basis:overheadFixedBasis,details:Object.fromEntries(itemDefinitions().map(([id])=>[id,$('detail-'+id).open]))};
 }
@@ -330,6 +330,7 @@ function update(){
  renderItemEditors();renderCopyMarks();renderSimplePreview();refreshNavigationHint();
  $('undo-round').hidden=!roundUndo;$('undo-round-help').hidden=!roundUndo;
  catFeedback(invalid?'error':'typing');
+ window.CompanyImportUI?.refresh();
 }
 function changeLines(r){const p=state.p;return [`標準 ${E.yen(r.standard)} → 採用 ${E.yen(r.adopted)}`,`差額 ${E.signed(r.diff)}　標準比 ${E.ratio(r.diff,r.standard)}`,...(partRatioIds.includes(r.id)?[`部品代比 ${E.ratio(r.booked,p.parts,2,false)}`]:[]),`理由：${state.memos[r.id]||'記入なし'}`];}
 function renderChanges(){
@@ -443,7 +444,7 @@ function updateDiscounts(){
  }
 }
 $('discount-form').addEventListener('submit',event=>event.preventDefault());
-$('discount-form').addEventListener('input',()=>{updateDiscounts();catFeedback('typing');});
+$('discount-form').addEventListener('input',()=>{updateDiscounts();window.CompanyImportUI?.refresh();catFeedback('typing');});
 $('discount-form').addEventListener('focusin',event=>{const el=event.target;if(el.dataset.kind&&el.value.includes(',')){
  const before=el.value,start=el.selectionStart,end=el.selectionEnd;el.value=before.replaceAll(',','');
  if(start!==null&&end!==null)el.setSelectionRange(before.slice(0,start).replaceAll(',','').length,before.slice(0,end).replaceAll(',','').length);
@@ -488,9 +489,8 @@ $('check-import').addEventListener('click',()=>{
   pendingImport=data;$('import-preview').hidden=false;
  }catch(error){$('import-error').textContent=error.message;}
 });
-$('apply-import').addEventListener('click',()=>{
- if(!pendingImport)return;const data=pendingImport;
- resetWorkflow();settingSources=Object.fromEntries(settings.map(([id])=>[id,'imported']));
+function restoreConditions(data){
+ resetWorkflow();settingSources=data.settingSources??Object.fromEntries(settings.map(([id])=>[id,'imported']));
  resetCustomItems();resetOverhead();resetDiscounts();
  descriptors.forEach(([id])=>$(id).value=E.format(data.p[id]));
  for(const item of data.extraItems){
@@ -500,9 +500,13 @@ $('apply-import').addEventListener('click',()=>{
  }
  rowOrder=data.order.slice();syncRowDOM();
  for(const [id] of itemDefinitions()){$('adopt-'+id).value=data.adopted[id]===null?'':E.format(data.adopted[id]);$('memo-'+id).value=data.memos[id];$('detail-'+id).open=false;}
- partsRateModes={materialsRate:'imported',removalRate:'imported'};
+ partsRateModes=data.partsRateModes??{materialsRate:'imported',removalRate:'imported'};
  rateLinks={...data.links};overheadRounded=data.rounded;overheadManual=data.mode==='manual';overheadFixedBasis=null;
- update();resetImport();$('import-notice').textContent='計算条件を反映しました。復元した掛率を保持して再計算します。';$('basic-title').scrollIntoView({block:'start'});catFeedback('copy');
+ update();
+}
+$('apply-import').addEventListener('click',()=>{
+ if(!pendingImport)return;const data=pendingImport;
+ restoreConditions(data);resetImport();$('import-notice').textContent='計算条件を反映しました。復元した掛率を保持して再計算します。';$('basic-title').scrollIntoView({block:'start'});catFeedback('copy');
 });
 $('copy-simple').addEventListener('click',async()=>{
  if(invalid)return;finishItemDrag(false);const button=$('copy-simple'),epoch=copyEpoch,revision=updateRevision;button.disabled=true;
@@ -545,3 +549,12 @@ $('save-image').addEventListener('click',async()=>{
 // Browser back/forward caches must not retain previous input values.
 window.addEventListener('pageshow',()=>{resetWorkflow();resetCustomItems();descriptors.forEach(([id])=>$(id).value=E.defaults[id]);E.items.forEach(([id])=>{$('adopt-'+id).value='';$('memo-'+id).value='';$('detail-'+id).open=false;});resetOverhead();resetDiscounts();resetImport();resetPartsRateModes();update();});
 update();
+window.CompanyImportUI.init({
+ context:()=>{
+  const values={};for(const [id,, ,kind] of settings){const parsed=E.parse($(id).value,kind);if(parsed.error)throw Error('CATの標準設定を確認してください');values[id]=parsed.value;}
+  return {settings:values,autoRates:Object.fromEntries(partsRateIds.map(id=>[id,partsRateModes[id]==='auto']))};
+ },
+ revision:()=>updateRevision,
+ hasInput:()=>basic.some(([id,,,kind])=>{const p=E.parse($(id).value,kind);return !!p.error||p.value!==0n;})||customItems.length>0||state.rows.some(row=>row.adopted!==null||state.memos[row.id])||settings.some(([id])=>$(id).value.replaceAll(',','')!==E.defaults[id])||['discount-rate','discount-amount'].some(id=>$(id).value.trim()!==''),
+ apply:data=>{const modes={...partsRateModes},sources={...settingSources};restoreConditions({...data,partsRateModes:modes,settingSources:sources});resetImport();catFeedback('copy');}
+});
