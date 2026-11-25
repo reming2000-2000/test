@@ -4,6 +4,9 @@
  const E=typeof module!=='undefined'?require('./calc.js'):root.Estimate;
  const targets=[...E.items,['extra','追加項目'],['welfare','法定福利費（比較のみ）'],['discount','値引（比較のみ）'],['exclude','取込対象外']];
  const unitPattern=/^(?:式|台|個|缶|枚|冊|本|組|セット|人|名|人工|人日|日|m|kg)$/i;
+ const saleCategory=/^(?:FREE(?:\s*部品)?|部品|経費|小計|中計|合計|総合計)$/i;
+ const itemNumber=/^\d+$/;
+ const modelCode=/^(?=[a-z0-9._/()-]*[a-z])[a-z0-9][a-z0-9._/()-]*$|^(?:型式|仕様).+/i;
  const norm=s=>String(s??'').normalize('NFKC').trim();
  const compact=s=>norm(s).replace(/[\s　]/g,'');
  function amount(raw){
@@ -39,17 +42,69 @@
   if(/^(?:総合計|合計|最終金額|見積合計|見積金額)(?:税別)?$/.test(n))return 'total';
   return null;
  }
+ function isSectionHeading(data,value){
+  return /^FREE$/i.test(data.category)&&/^【[^】]+】$/.test(data.name)&&
+   value===0n&&!data.quantity&&!data.price;
+ }
+ function zeroContinuation(cells,section){
+  const nonempty=cells.filter(Boolean);
+  if(!section)return cells.length>=2&&nonempty.length>0&&nonempty.every(value=>amount(value)===0n);
+  // A section footer has a number (possibly different from the heading), blanks and a zero.
+  return itemNumber.test(cells[0])&&cells.length>=5&&cells.slice(1,4).every(value=>!value)&&
+   nonempty.length===2&&amount(nonempty[1])===0n;
+ }
+ function costContinuation(cells,previous,columns){
+  if(!previous)return null;
+  if(previous.section)return zeroContinuation(cells,true)||zeroContinuation(cells,false)?[]:null;
+  if(previous.summary&&zeroContinuation(cells,false))return [];
+  if(previous.discount&&cells.length>=3&&unitPattern.test(cells[0])&&!cells[1]&&
+    amount(cells[2])===0n&&cells.slice(3).every(value=>!value))return [];
+
+  const get=key=>cells[columns?.[key]]||'';
+  const category=columns?get('category'):cells[1]||'';
+  const name=columns?get('name'):cells[2]||'';
+  const number=columns?get('number'):cells[0]||'';
+  if(columns&&/^原価(?:行)?$/.test(category||name))return [get('memo')];
+  // A recognized selling category or a full numbered sale is never inferred to be a cost row.
+  if(saleCategory.test(category)||(
+   itemNumber.test(number)&&name&&cells.length>(columns?.amount??6)
+  ))return null;
+  if(columns&&!category&&unitPattern.test(get('quantity'))&&(!name||
+   (number&&number===previous.number)))return [get('memo')];
+  if(columns&&columns.number===undefined)return null;
+
+  // Preserve the established numbered layout with blank cost cells.
+  if(itemNumber.test(cells[0])&&!cells[2]&&unitPattern.test(cells[3])&&cells.length>=6&&
+   cells.slice(4,6).every(value=>!value||amount(value)!==null)&&cells.slice(7).every(value=>!value)){
+   return [cells[1]||'',cells[6]||''];
+  }
+  // A compact continuation starts with a number, a model, or the unit itself.
+  // A compact numbered row must match its sale; the established layout above can differ.
+  const first=cells[0]||'';
+  if(itemNumber.test(first)&&first!==previous.number)return null;
+  // Require the unit and both adjacent cost amounts. Remaining text is evidence only.
+  const hasPrefix=itemNumber.test(first)||modelCode.test(first);
+  if(!hasPrefix&&!unitPattern.test(first))return null;
+  const start=unitPattern.test(first)?0:1;
+  const end=unitPattern.test(first)?1:cells.length-2;
+  for(let i=start;i<end;i++){
+   if(unitPattern.test(cells[i])&&amount(cells[i+1])!==null&&amount(cells[i+2])!==null){
+    return [...cells.slice(1,i),...cells.slice(i+3)].filter(Boolean);
+   }
+  }
+  return null;
+ }
  // TSV supports quoted cells, escaped quotes and line breaks in a quoted memo.
  function records(text,delimiter){
-  if(delimiter!=='\t')return text.split('\n').map((line,i)=>({line:i+1,cells:delimiter==='|'?line.replace(/^\s*\||\|\s*$/g,'').split('|').map(norm):line.trim().split(/ {2,}/).map(norm)}));
-  const out=[];let cells=[],cell='',quoted=false,line=1,start=1;
+  if(delimiter!=='\t')return text.split('\n').map((raw,i)=>({line:i+1,raw,cells:delimiter==='|'?raw.replace(/^\s*\||\|\s*$/g,'').split('|').map(norm):raw.trim().split(/ {2,}/).map(norm)}));
+  const out=[];let cells=[],cell='',quoted=false,line=1,start=1,offset=0;
   for(let i=0;i<=text.length;i++){
    const ch=text[i];
    if(ch==='"'&&(quoted||cell==='')){if(quoted&&text[i+1]==='"'){cell+='"';i++;}else quoted=!quoted;continue;}
    if(ch==='\n')line++;
    if(!quoted&&(ch==='\t'||ch==='\n'||ch===undefined)){
     cells.push(norm(cell));cell='';
-    if(ch!=='\t'){out.push({line:start,cells});cells=[];start=line;}
+    if(ch!=='\t'){out.push({line:start,raw:text.slice(offset,i),cells});cells=[];start=line;offset=i+1;}
    }else if(ch!==undefined)cell+=ch;
   }
   if(quoted)throw Error('引用符が閉じていません。コピーした表全体を貼り付け直してください。');
@@ -69,75 +124,112 @@
   if(rows.length>2000)throw Error('貼付内容は2,000行までです。');
   const headerIndex=rows.findIndex(row=>header(row.cells));
   const columns=headerIndex>=0?header(rows[headerIndex].cells):null;
-  const legacy=!columns&&rows.some(({cells:c})=>/^\d+$/.test(c[0])&&/^(?:FREE\s*部品|経費|小計)$/i.test(c[1])&&c.length>=7);
+  const legacy=!columns&&rows.some(({cells:c})=>itemNumber.test(c[0])&&c.length>=7&&(
+   saleCategory.test(c[1])||(c[1]&&c[2]&&amount(c[4])!==null&&amount(c[5])!==null)
+  ));
   if(!columns&&!legacy)throw Error('列を判定できません。社内システムの明細全体、または「品名・売価金額」列のあるタブ区切り表を貼り付けてください。');
-  const items=[],summaries=[],seen=new Set();let previous=null,expectCost=false;
+  const items=[],summaries=[],seen=new Set();let previous=null;
   const headings=columns?rows[headerIndex].cells:null;
-  function unread(row,reason){const item={id:'source_'+(items.length+1),line:row.line,number:'',name:'読取できない行（'+row.line+'行目）',category:'',amount:null,quantity:'',unit:'',memo:'',target:'',status:'error',reason};items.push(item);expectCost=false;}
+  function unread(row,reason,data={}){
+   items.push({...data,id:'source_'+(items.length+1),line:row.line,raw:row.raw,
+    name:data.name||'読取できない行（'+row.line+'行目）',amount:null,target:'',status:'error',reason});
+   previous=null;
+  }
   for(let index=0;index<rows.length;index++){
    const row=rows[index],c=row.cells;
    if(index===headerIndex||(headings&&headings.length===c.length&&headings.every((cell,i)=>cell===c[i]))||c.every(cell=>/^:?[\-─━—=]+:?$/.test(cell)||!cell))continue;
-   // The supplied two-row layout has a unit at column 4 in its cost continuation.
-   const cost=legacy&&expectCost&&/^\d+$/.test(c[0])&&unitPattern.test(c[3])&&c.length>=6&&
-    !/^(?:FREE\s*部品|経費|小計)$/i.test(c[1])&&!c[2]&&[c[4],c[5]].every(value=>!value||amount(value)!==null)&&c.slice(7).every(cell=>!cell);
-   const headerCost=columns&&expectCost&&((!c[columns.category]&&columns.quantity!==undefined&&unitPattern.test(c[columns.quantity])&&(!c[columns.name]||(columns.number!==undefined&&c[columns.number]===previous.number)))||/^原価(?:行)?$/.test(c[columns.category]||c[columns.name]||''));
-   const subtotalZero=legacy&&expectCost&&previous?.summary==='subtotal'&&c.length>=2&&c.every(cell=>cell===''||cell==='0');
-   const discountCost=legacy&&expectCost&&previous?.discount&&c.length===3&&unitPattern.test(c[0])&&c[1]===''&&c[2]==='0';
-   if(cost||headerCost||subtotalZero||discountCost){expectCost=false;continue;}
+   const costNotes=costContinuation(c,previous,columns);
+   if(costNotes!==null){
+    if(previous.item)previous.item.costNotes=costNotes;
+    if(!previous.section)previous=null;
+    continue;
+   }
    if(columns&&index===headerIndex+1&&/^(?:原価|原単価)$/.test(c[columns.amount])&&c.every(cell=>!cell||/^(?:原価|原単価|単位|コメント|仕様|定価|型式|項番)$/.test(cell)))continue;
    let data;
    if(legacy){
-    if(!/^\d+$/.test(c[0])||c.length<7||!c[2]||(!/^(?:FREE\s*部品|経費|小計)$/i.test(c[1])&&c.length<8)){unread(row,'社内表の売価行・原価補助行のどちらにも一致しません');continue;}
-    data={number:c[0],category:c[1],name:c[2],memo:c[3]||'',quantity:c[4]||'',unit:'',rawAmount:c[6]};
+    if(!itemNumber.test(c[0])||c.length<7||!c[2]){unread(row,'社内表の売価行・原価補助行のどちらにも一致しません');continue;}
+    data={number:c[0],category:c[1],name:c[2],memo:c[3]||'',quantity:c[4]||'',price:c[5]||'',unit:'',rawAmount:c[6]};
    }else{
     if(c.slice(rows[headerIndex].cells.length).some(Boolean)){unread(row,'見出しより列数が多いため、売価列を確定できません');continue;}
     const get=key=>columns[key]===undefined?'':c[columns[key]]||'';
     if(!get('name')){unread(row,'費目名称が空欄の行です');continue;}
-    data={number:get('number'),category:get('category'),name:get('name'),memo:get('memo'),quantity:get('quantity'),unit:get('unit')||(compact(rows[headerIndex].cells[columns.quantity])==='人工数'?'人工':''),rawAmount:get('amount')};
+    data={number:get('number'),category:get('category'),name:get('name'),memo:get('memo'),quantity:get('quantity'),price:get('price'),unit:get('unit')||(compact(rows[headerIndex].cells[columns.quantity])==='人工数'?'人工':''),rawAmount:get('amount')};
    }
    const value=amount(data.rawAmount),summary=summaryKind(data.name,data.category);
+   if(isSectionHeading(data,value)){previous={section:true};continue;}
    if(summary){
     if(value===null){unread(row,'小計・合計の金額を読み取れません');continue;}
     summaries.push({line:row.line,name:data.name,kind:summary,amount:value});
+    previous={number:data.number,summary};
    }else{
-    const duplicate=data.number&&seen.has(data.number);
+    if(value===null){unread(row,'売価金額を読み取れません。備考から金額を推測しません',data);continue;}
+    if(data.number&&seen.has(data.number)){unread(row,'売価明細の番号が重複しています。元データを確認',data);continue;}
     const item={...data,id:'source_'+(items.length+1),line:row.line,amount:value,...classify(data.name,data.category,value)};
-    if(value===null||duplicate){item.amount=null;item.target='';item.candidate='';item.status='error';item.reason=duplicate?'売価明細の番号が重複しています。元データを確認':'売価金額を読み取れません。備考から金額を推測しません';}
-    else if(data.number)seen.add(data.number);
+    if(data.number)seen.add(data.number);
     items.push(item);
+    previous={number:data.number,item,discount:/値引|端数調整/.test(data.name)};
    }
-   previous={number:data.number,summary,discount:/値引|端数調整/.test(data.name)};expectCost=true;
   }
   if(!items.length)throw Error('取り込める売価明細がありません。');
   return {items,summaries};
  }
  function selected(item,selections){return selections[item.id]??{target:item.target,extraLabor:false};}
+ function costWorkerEvidence(note){
+  // Read the stated headcount from a labor note with an identifiable currency multiplier.
+  const formula=/^(\d+(?:\.\d+)?)\s*(人|名)\s*[x×*]\s*([¥￥]?[\d,.]+(?:円)?)(?:\s*\/\s*人)?$/i.exec(note);
+  if(!formula||!/[¥￥,円]/.test(formula[3])||!(amount(formula[3])>0n))return null;
+  const count=E.parse(formula[1],'decimal');
+  if(count.error)return null;
+  return {value:count.value,basis:'原価行の備考 '+E.format(count.value)+formula[2]+'×'+formula[3]};
+ }
+ function memoWorkerEvidence(memo,fromCost=false){
+  if(fromCost){
+   if(!/\d\s*(?:日|名|人)/.test(memo))return [];
+   const costEvidence=costWorkerEvidence(memo);
+   if(costEvidence)return [costEvidence];
+  }
+  if(memo.length>2000||/または|もしくは|別案|未定|要確認|\d\s*(?:日|名|人)?\s*[~〜～]\s*\d|(?:\d|名|人)\s*[+\-−×*/]\s*\d/.test(memo))return null;
+  const formulas=[...memo.matchAll(/(?<![\d.,+−-])(\d+(?:\.\d+)?)\s*日\s*[x×*]\s*(\d+(?:\.\d+)?)(?![\d.,])\s*(名|人(?![工日])|(?![名人]))(?!\s*[+\-−×x*/])/gi)];
+  if(formulas.length>1)return null;
+  const evidence=[];
+  for(const match of memo.matchAll(/(?<![\d.,+−-])(\d+(?:\.\d+)?)\s*(?:人工|人日)(?![数])/g)){
+   const count=E.parse(match[1],'decimal');
+   if(count.error)return null;
+   evidence.push({value:count.value,basis:E.format(count.value)+'人工'});
+  }
+  for(const match of formulas){
+   const days=E.parse(match[1],'decimal'),people=E.parse(match[2],'decimal');
+   if(days.error||people.error)return null;
+   const value=days.value*people.value/E.SCALE;
+   evidence.push({value,basis:E.format(days.value)+'日×'+E.format(people.value)+(match[3]?.trim()||'')+'＝'+E.format(value)+'人工'});
+  }
+  return evidence;
+ }
  function workersHint(document,selections={}){
   const labor=document.items.filter(item=>selected(item,selections).target==='labor');
   if(!labor.length)return {needed:false,value:'0',reason:''};
   const manual=reason=>({needed:true,value:'',reason});
   let sum=0n;const bases=[];
   for(const item of labor){
-   const memo=norm(item.memo);
-   if(memo.length>2000||/または|もしくは|別案|未定|要確認|\d\s*(?:日|名|人)?\s*[~〜～]\s*\d|(?:\d|名|人)\s*[+\-−×*/]\s*\d/.test(memo))return manual('作業人員を確認して入力してください。');
-   const formulas=[...memo.matchAll(/(?<![\d.,+−-])(\d+(?:\.\d+)?)\s*日\s*[x×*]\s*(\d+(?:\.\d+)?)(?![\d.,])\s*(名|人(?![工日])|(?![名人]))(?!\s*[+\-−×x*/])/gi)];
-   const quantities=[...memo.matchAll(/(?<![\d.,+−-])(\d+(?:\.\d+)?)\s*(?:人工|人日)(?![数])/g)].map(match=>match[1]);
-   if(/^(人工|人日)$/.test(compact(item.unit))&&norm(item.quantity))quantities.push(item.quantity);
    const evidence=[];
-   for(const raw of quantities){
-    const parsed=E.parse(raw,'decimal');
+   if(/^(人工|人日)$/.test(compact(item.unit))&&norm(item.quantity)){
+    const parsed=E.parse(item.quantity,'decimal');
     if(parsed.error)return manual('人工の表記を確認して入力してください。');
     evidence.push({value:parsed.value,basis:E.format(parsed.value)+'人工'});
    }
-   for(const match of formulas){
-    const days=E.parse(match[1],'decimal'),people=E.parse(match[2],'decimal');
-    if(days.error||people.error)return manual('日数・人数の表記を確認して入力してください。');
-    const value=days.value*people.value/E.SCALE;
-    evidence.push({value,basis:E.format(days.value)+'日×'+E.format(people.value)+(match[3]?.trim()||'')+'＝'+E.format(value)+'人工'});
+   const saleEvidence=memoWorkerEvidence(norm(item.memo));
+   if(!saleEvidence)return manual('作業人員を確認して入力してください。');
+   evidence.push(...saleEvidence);
+   const hasSaleEvidence=evidence.length>0;
+   for(const note of item.costNotes??[]){
+    const costEvidence=memoWorkerEvidence(norm(note),true);
+    if(!costEvidence)return manual('原価行の備考に複数の解釈があります。作業人員を確認して入力してください。');
+    evidence.push(...costEvidence);
    }
    if(!evidence.length)return manual('数量・備考から確定できません。作業人員を入力してください。');
-   if(formulas.length>1||evidence.some(entry=>entry.value!==evidence[0].value))return manual('人工の表記が複数あるか一致しません。作業人員を確認して入力してください。');
-   sum+=evidence[0].value;bases.push(evidence.at(-1).basis);
+   if(evidence.some(entry=>entry.value!==evidence[0].value))return manual('作業人員の表記が一致しません。確認して入力してください。');
+   sum+=evidence[0].value;
+   bases.push(hasSaleEvidence?(saleEvidence.at(-1)??evidence[0]).basis:evidence.at(-1).basis+' → '+E.format(evidence[0].value)+'人工');
   }
   const raw=E.format(sum).replaceAll(',',''),check=E.parse(raw,'decimal');
   if(check.error)return manual('作業人員がCATの入力範囲外です。');
@@ -153,8 +245,8 @@
    if(item.amount===null)sourceValid=false;
    else sourceTotal+=target==='discount'?(item.amount<0n?item.amount:-item.amount):item.amount;
    if(target==='exclude'){excluded.push(item);continue;}
+   if(item.amount===null){errors.push(item.name+'：形式を確認してください');continue;}
    if(!targets.some(([id])=>id===target)){errors.push(item.name+'：振り分け先を選択してください');continue;}
-   if(item.amount===null){errors.push(item.name+'：金額を読み取れないため、貼り付け直すか対象外を選択してください');continue;}
    if(target==='discount'){discount-=item.amount<0n?-item.amount:item.amount;continue;}
    if(item.amount<0n){errors.push(item.name+'：負額は値引または取込対象外にしてください');continue;}
    if(target==='welfare')continue;

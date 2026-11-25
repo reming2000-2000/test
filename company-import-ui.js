@@ -9,7 +9,7 @@
  function clearPreview(){
   clearTimeout(parseTimer);
   source=null;selections={};itemsById.clear();workerOverride=null;workerHint=null;receipt=false;
-  for(const id of ['company-issues','company-rows','company-aggregates','company-messages','company-balance'])$(id).replaceChildren();
+  for(const id of ['company-issues','company-format-rows','company-rows','company-aggregates','company-messages','company-balance'])$(id).replaceChildren();
   for(const id of ['company-error','company-notice'])$(id).textContent='';
   for(const id of ['company-review','company-commit','company-balance'])$(id).hidden=true;
   for(const id of ['company-detail','company-worker-edit'])$(id).open=false;
@@ -85,27 +85,42 @@
   if(detailFocused)summary.focus();
  }
  function targetOf(item){return selections[item.id]?.target??item.target;}
+ function createFormatRow(item){
+  const excluded=targetOf(item)==='exclude';
+  const row=line('article','','company-format-row');
+  row.dataset.sourceId=item.id;
+  const heading=item.name.startsWith('読取できない行（')?item.line+'行目':item.line+'行目・'+item.name;
+  row.append(line('strong',heading),line('p',excluded?'対象外を確認済み':item.reason));
+  const content=line('details','','inline-help');
+  content.append(line('summary','原文を表示'),line('pre',item.raw));
+  row.append(content);
+  const button=line('button',excluded?'対象外を取り消す':'この行を対象外にする','text-button company-format-action');
+  button.type='button';button.dataset.companyFormat=item.id;
+  row.append(button);
+  return row;
+ }
  function createRow(item){
+  if(item.amount===null)return createFormatRow(item);
   const chosen=targetOf(item);
   const row=document.createElement('article');row.className='company-row';row.dataset.sourceId=item.id;
   const name=document.createElement('div');
   name.append(line('strong',item.name));
   if(!chosen){
-   const status={review:'要確認',unclassified:'未分類',error:'未読取'};
+   const status={review:'要確認',unclassified:'未分類'};
    name.append(line('span',status[item.status]??'未分類','company-status'));
    name.append(line('small',item.line+'行目｜'+item.reason));
   }else{
    const status=chosen==='exclude'?'対象外を確認済み':selections[item.id]?.target?'手動確認済み':'自動判定';
    name.append(line('small',item.line+'行目・'+status));
   }
-  const amount=line('div',item.amount===null?'売価を読取できません':E.yen(item.amount),'company-amount');
+  const amount=line('div',E.yen(item.amount),'company-amount');
   const controls=document.createElement('div');
   const select=document.createElement('select');select.dataset.companyTarget=item.id;
   select.setAttribute('aria-label',item.name+'の振り分け先');
   select.append(new Option('振り分け先を選択',''));
   for(const [id,label] of C.targets){
    const option=new Option(label,id);
-   option.disabled=(item.amount===null&&id!=='exclude')||(item.amount<0n&&!['discount','exclude'].includes(id));
+   option.disabled=item.amount<0n&&!['discount','exclude'].includes(id);
    select.append(option);
   }
   select.value=chosen||item.candidate||'';
@@ -125,18 +140,25 @@
   return row;
  }
  function renderRows(focusId){
-  const unresolved=[],classified=[];
-  for(const item of source.items)(targetOf(item)?classified:unresolved).push(item);
+  const unresolved=[],unread=[],classified=[];
+  for(const item of source.items){
+   if(targetOf(item))classified.push(item);
+   else if(item.amount===null)unread.push(item);
+   else unresolved.push(item);
+  }
   const issues=$('company-issues'),rows=$('company-rows'),details=$('company-detail');
   issues.replaceChildren(...unresolved.map(createRow));
   $('company-issue-area').hidden=!unresolved.length;
   $('company-issue-title').textContent='要確認 '+unresolved.length+'項目';
+  $('company-format-rows').replaceChildren(...unread.map(createFormatRow));
+  $('company-format-area').hidden=!unread.length;
+  $('company-format-title').textContent='形式を確認してください（'+unread.length+'行）';
   details.hidden=!classified.length;
   // Most imports never need the individual rows, even when the paste is large.
   rows.replaceChildren(...(details.open?classified.map(createRow):[]));
   if(focusId){
-   const control=$('company-review').querySelector(`[data-company-target="${focusId}"]`);
-   const next=control??issues.querySelector('select')??$('company-detail-toggle');
+   const control=$('company-review').querySelector(`[data-company-target="${focusId}"],[data-company-format="${focusId}"]`);
+   const next=control??issues.querySelector('select')??$('company-format-rows').querySelector('button')??$('company-detail-toggle');
    next.focus({preventScroll:true});
    next.scrollIntoView({block:'nearest'});
   }
@@ -171,7 +193,8 @@
   try{
    const plan=makePlan();showAggregates(plan);showBalance(plan);
    // Individual classification errors already have a visible control and explanation.
-   const messages=plan.errors.filter(error=>!error.endsWith('：振り分け先を選択してください')&&error!=='交換作業費の作業人員を入力してください');
+   const messages=plan.errors.filter(error=>!error.endsWith('：振り分け先を選択してください')&&
+    !error.endsWith('：形式を確認してください')&&error!=='交換作業費の作業人員を入力してください');
    $('company-messages').replaceChildren(...messages.map(text=>line('li',text)));
    $('company-apply').disabled=!!plan.errors.length;
   }catch(error){
@@ -207,8 +230,9 @@
   $('company-clear').addEventListener('click',()=>{reset();$('company-text').focus();});
   $('company-detail').addEventListener('toggle',()=>{if(source)renderRows();});
   $('company-review').addEventListener('click',event=>{
-   const id=event.target.dataset.companyAccept;
+   const {companyAccept:id,companyFormat:formatId}=event.target.dataset;
    if(id)choose(id,event.target.closest('.company-row').querySelector('select').value);
+   if(formatId)choose(formatId,targetOf(itemsById.get(formatId))==='exclude'?'':'exclude');
   });
   $('company-review').addEventListener('change',event=>{
    const {companyTarget,companyLabor}=event.target.dataset;

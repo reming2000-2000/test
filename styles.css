@@ -233,6 +233,10 @@
 #company-workers{max-width:180px;font-size:16px;height:44px}
 .company-issue-area{background:#fffaf2;border:1px solid #e9dbc2;border-radius:5px;padding:10px;margin:10px 0}
 .company-issue-area h3,.company-status,.company-messages{color:#795922}
+.company-format-row{border-top:1px solid var(--line);padding:8px 0;font-size:12px;overflow-wrap:anywhere}
+.company-format-row>p{margin:4px 0;color:var(--muted)}
+.company-format-row pre{white-space:pre-wrap;overflow-wrap:anywhere;tab-size:4}
+.company-format-action{padding:0}
 .company-status{display:inline-block;font-size:10px;margin-left:6px}
 .company-row{display:grid;grid-template-columns:minmax(0,1.4fr) minmax(0,.72fr) minmax(0,1.2fr);gap:6px 12px;border-top:1px solid var(--line);padding:8px 0;font-size:12px;align-items:start}
 .company-row>div{min-width:0;overflow-wrap:anywhere}

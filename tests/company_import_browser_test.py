@@ -3,7 +3,10 @@ import os, subprocess
 from pathlib import Path
 from playwright.sync_api import sync_playwright,expect
 ROOT=Path(__file__).resolve().parents[1];ART=Path('/tmp/estimate-verification');ART.mkdir(exist_ok=True)
-SAMPLE=subprocess.check_output(['node','-e',"process.stdout.write(require('./tests/company_sample.cjs').sample)"],cwd=ROOT,text=True)
+def fixture(name):
+ return subprocess.check_output(['node','-e',"process.stdout.write(require('./tests/company_sample.cjs')[process.argv[1]])",name],cwd=ROOT,text=True)
+SAMPLE=fixture('sample')
+MIXED_SAMPLE=fixture('mixedSample')
 BASE=os.environ.get('CAT_TEST_BASE','http://127.0.0.1:8000')
 with sync_playwright() as p:
  b=p.chromium.launch(executable_path='/usr/bin/chromium',args=['--no-sandbox'])
@@ -118,11 +121,26 @@ with sync_playwright() as p:
  paste(text);amount('difference','0円');expect(page.locator('#company-apply')).to_be_disabled()
  expect(page.locator('#company-balance').get_by_text('金額は一致しています。')).to_have_count(0)
  target(2,'exclude');expect(page.locator('#company-apply')).to_be_enabled()
- paste(text+'\n3\t経費\t金額不明の費用\t不明\t100\t')
- expect(page.locator('#company-issues .company-row')).to_have_count(2)
- expect(page.locator('[data-source-id="source_3"]')).to_contain_text('売価を読取できません')
+ bad_line='3\t経費\t<em>金額不明の費用</em>\t不明\t100\t'
+ paste(text+'\n'+bad_line)
+ expect(page.locator('#company-issue-title')).to_have_text('要確認 1項目')
+ expect(page.locator('#company-format-title')).to_have_text('形式を確認してください（1行）')
+ bad=page.locator('[data-source-id="source_3"]')
+ expect(bad).to_contain_text('売価金額を読み取れません')
+ assert bad.locator('select').count()==0 and bad.locator('em').count()==0
+ expect(bad.locator('pre')).to_be_hidden()
+ bad.locator('summary').click()
+ assert bad.locator('pre').text_content()==bad_line
+ assert page.evaluate('document.documentElement.scrollWidth<=innerWidth')
  target(2,'exclude');expect(page.locator('#company-apply')).to_be_disabled()
- target(3,'exclude');amount('source-final','確認できません')
+ page.locator('[data-company-format="source_3"]').click()
+ expect(page.locator('#company-format-area')).to_be_hidden()
+ expect(page.locator('#company-apply')).to_be_enabled()
+ amount('source-final','確認できません')
+ page.locator('#company-detail-toggle').click()
+ page.locator('[data-company-format="source_3"]').click()
+ expect(page.locator('#company-format-area')).to_be_visible()
+ expect(page.locator('#company-apply')).to_be_disabled()
  paste(header+'\n1\t経費\t返却費\t-100\t0\t');expect(page.locator('#company-apply')).to_be_disabled()
  target(1,'discount');amount('cat-final','-100円')
  paste(header+'\n1\t経費\t<img src=x onerror=alert(1)>\t100\t0\t')
@@ -135,6 +153,22 @@ with sync_playwright() as p:
  fill('company-workers','不明');expect(page.locator('#company-apply')).to_be_disabled()
  fill('company-workers','1');apply();assert main()=='67,462円'
  expect(page.locator('#booked-overhead')).to_have_text('0円');expect(page.locator('#booked-removal')).to_have_text('0円')
+ # The mixed format creates no false reviews, but preserves a real 0-yen part.
+ page.locator('#reset').click()
+ paste(MIXED_SAMPLE,clipboard=True)
+ expect(page.locator('#company-issue-area')).to_be_hidden()
+ expect(page.locator('#company-format-area')).to_be_hidden()
+ assert page.locator('#company-panel select').count()==0
+ expect(page.locator('#company-workers-help')).to_contain_text('12人×58,000')
+ amount('source-final','1,740,000円');amount('difference','0円')
+ page.locator('#company-detail-toggle').click()
+ expect(page.locator('#company-rows .company-row')).to_have_count(13)
+ expect(page.locator('#company-rows').get_by_text('架空無償部品')).to_be_visible()
+ expect(page.locator('#company-rows').get_by_text('架空フレーム関係部品')).to_have_count(0)
+ expect(page.locator('#company-rows').get_by_text('ABC-123')).to_have_count(0)
+ apply();assert main()=='1,740,552円'
+ expect(page.locator('#workers')).to_have_value('12')
+ expect(page.locator('#adopt-materials')).to_have_value('28,000')
  # Explicit source total is used for comparison, arithmetic mismatches are disclosed in details.
  totals=header+'\n1\tFREE部品\t架空部品\t1000\t500\t\n2\t小計\t合計\t1010\t\t'
  paste(totals);amount('source-final','1,010円');amount('difference','－10円')
