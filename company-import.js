@@ -16,13 +16,20 @@
   const parsed=E.parse(s);return parsed.error?null:(negative?-parsed.value:parsed.value);
  }
  function classify(name,category,value){
-  const n=compact(name),c=compact(category);
-  if(/値引|値引き|端数調整/.test(n))return value!==null&&value<0n?{target:'discount',status:'auto',reason:'値引として比較のみ'}:{target:'',status:'review',reason:'値引の符号・扱いを確認してください'};
-  if(value!==null&&value<0n)return {target:'',status:'review',reason:'負額はCAT費目に入力できません。値引または対象外を選択'};
-  if(/FREE部品/i.test(c)||c==='部品')return {target:'parts',status:'auto',reason:'部品区分'};
+  const n=compact(name).replace(/[・,、.。/／:：;；()「」\[\]【】_-]/g,''),c=compact(category);
   const rules=[['materials',/消耗資材|諸材料/],['shipping',/交通費|輸送費|送料|運搬費|運搬交通/],['protection',/養生|安全対策/],['removal',/撤去品引取|撤去処分/],['labor',/交換作業費/],['overhead',/諸経費/],['welfare',/法定福利/],['extra',/試運転調整/]];
   const found=rules.filter(([,pattern])=>pattern.test(n)).map(([id])=>id);
-  if(/工事機材費/.test(n))return {target:'',status:'review',reason:'消耗資材費の候補。工事機材費の内容を確認'};
+  if(/値引|端数調整/.test(n)){
+   if(found.length||/工事機材費/.test(n))return {target:'',status:'review',reason:'値引と別の費目のキーワードが混在しています'};
+   if(value!==null&&value<0n)return {target:'discount',status:'auto',reason:'値引として比較のみ'};
+   return {target:'',candidate:'discount',status:'review',reason:'値引の符号・扱いを確認してください'};
+  }
+  if(value!==null&&value<0n)return {target:'',status:'review',reason:'負額はCAT費目に入力できません。値引または対象外を選択'};
+  if(/FREE部品/i.test(c)||c==='部品')return {target:'parts',status:'auto',reason:'部品区分'};
+  if(/工事機材費/.test(n)&&!found.includes('materials')){
+   if(found.length)return {target:'',status:'review',reason:'工事機材費と別の費目のキーワードが混在しています'};
+   return {target:'',candidate:'materials',status:'review',reason:'工事機材費の振り分け先を確認してください'};
+  }
   if(found.length>1)return {target:'',status:'review',reason:'複数の費目に該当するため確認が必要'};
   return found.length?{target:found[0],status:'auto',reason:'費目名のキーワード'}:{target:'',status:'unclassified',reason:'振り分け先を選択してください'};
  }
@@ -64,20 +71,20 @@
   const columns=headerIndex>=0?header(rows[headerIndex].cells):null;
   const legacy=!columns&&rows.some(({cells:c})=>/^\d+$/.test(c[0])&&/^(?:FREE\s*部品|経費|小計)$/i.test(c[1])&&c.length>=7);
   if(!columns&&!legacy)throw Error('列を判定できません。社内システムの明細全体、または「品名・売価金額」列のあるタブ区切り表を貼り付けてください。');
-  const items=[],summaries=[],notices=[],seen=new Set();let previous=null,expectCost=false,prefix=0n,prefixValid=true;
-  function unread(row,reason){const item={id:'source_'+(items.length+1),line:row.line,number:'',name:'読取できない行（'+row.line+'行目）',category:'',amount:null,quantity:'',unit:'',memo:'',target:'',status:'error',reason};items.push(item);prefixValid=false;expectCost=false;}
+  const items=[],summaries=[],seen=new Set();let previous=null,expectCost=false;
+  const headings=columns?rows[headerIndex].cells:null;
+  function unread(row,reason){const item={id:'source_'+(items.length+1),line:row.line,number:'',name:'読取できない行（'+row.line+'行目）',category:'',amount:null,quantity:'',unit:'',memo:'',target:'',status:'error',reason};items.push(item);expectCost=false;}
   for(let index=0;index<rows.length;index++){
    const row=rows[index],c=row.cells;
-   if(index===headerIndex||header(c)||c.every(cell=>/^:?-+:?$/.test(cell)||!cell))continue;
+   if(index===headerIndex||(headings&&headings.length===c.length&&headings.every((cell,i)=>cell===c[i]))||c.every(cell=>/^:?[\-─━—=]+:?$/.test(cell)||!cell))continue;
    // The supplied two-row layout has a unit at column 4 in its cost continuation.
-   const cost=legacy&&expectCost&&/^\d+$/.test(c[0])&&unitPattern.test(c[3])&&c.length>=6&&c.slice(7).every(cell=>!cell);
-   const headerCost=columns&&expectCost&&((columns.quantity!==undefined&&unitPattern.test(c[columns.quantity])&&(!c[columns.name]||(columns.number!==undefined&&c[columns.number]===previous.number)))||/^原価(?:行)?$/.test(c[columns.category]||c[columns.name]||''));
-   const subtotalZero=legacy&&expectCost&&previous?.summary==='subtotal'&&c.length===2&&c.every(cell=>cell==='0');
+   const cost=legacy&&expectCost&&/^\d+$/.test(c[0])&&unitPattern.test(c[3])&&c.length>=6&&
+    !/^(?:FREE\s*部品|経費|小計)$/i.test(c[1])&&!c[2]&&[c[4],c[5]].every(value=>!value||amount(value)!==null)&&c.slice(7).every(cell=>!cell);
+   const headerCost=columns&&expectCost&&((!c[columns.category]&&columns.quantity!==undefined&&unitPattern.test(c[columns.quantity])&&(!c[columns.name]||(columns.number!==undefined&&c[columns.number]===previous.number)))||/^原価(?:行)?$/.test(c[columns.category]||c[columns.name]||''));
+   const subtotalZero=legacy&&expectCost&&previous?.summary==='subtotal'&&c.length>=2&&c.every(cell=>cell===''||cell==='0');
    const discountCost=legacy&&expectCost&&previous?.discount&&c.length===3&&unitPattern.test(c[0])&&c[1]===''&&c[2]==='0';
-   if(cost||headerCost||subtotalZero||discountCost){
-    notices.push({line:row.line,text:cost&&c[0]!==previous.number?'原価補助行（売価行と番号相違・金額は不使用）':'原価補助行（見積金額に加算しません）'});expectCost=false;continue;
-   }
-   if(columns&&index===headerIndex+1&&c.some(cell=>/^(?:原価|原単価)$/.test(cell))){notices.push({line:row.line,text:'原価・単位の補助見出し'});continue;}
+   if(cost||headerCost||subtotalZero||discountCost){expectCost=false;continue;}
+   if(columns&&index===headerIndex+1&&/^(?:原価|原単価)$/.test(c[columns.amount])&&c.every(cell=>!cell||/^(?:原価|原単価|単位|コメント|仕様|定価|型式|項番)$/.test(cell)))continue;
    let data;
    if(legacy){
     if(!/^\d+$/.test(c[0])||c.length<7||!c[2]||(!/^(?:FREE\s*部品|経費|小計)$/i.test(c[1])&&c.length<8)){unread(row,'社内表の売価行・原価補助行のどちらにも一致しません');continue;}
@@ -91,36 +98,51 @@
    const value=amount(data.rawAmount),summary=summaryKind(data.name,data.category);
    if(summary){
     if(value===null){unread(row,'小計・合計の金額を読み取れません');continue;}
-    summaries.push({line:row.line,name:data.name,kind:summary,amount:value,expected:prefixValid?prefix:null});
+    summaries.push({line:row.line,name:data.name,kind:summary,amount:value});
    }else{
     const duplicate=data.number&&seen.has(data.number);
     const item={...data,id:'source_'+(items.length+1),line:row.line,amount:value,...classify(data.name,data.category,value)};
-    if(value===null||duplicate){item.amount=null;item.target='';item.status='error';item.reason=duplicate?'売価明細の番号が重複しています。元データを確認':'売価金額を読み取れません。備考から金額を推測しません';prefixValid=false;}
-    else {prefix+=value;if(data.number)seen.add(data.number);}
+    if(value===null||duplicate){item.amount=null;item.target='';item.candidate='';item.status='error';item.reason=duplicate?'売価明細の番号が重複しています。元データを確認':'売価金額を読み取れません。備考から金額を推測しません';}
+    else if(data.number)seen.add(data.number);
     items.push(item);
    }
    previous={number:data.number,summary,discount:/値引|端数調整/.test(data.name)};expectCost=true;
   }
   if(!items.length)throw Error('取り込める売価明細がありません。');
-  return {items,summaries,notices,format:legacy?'社内システム2行形式':'見出し付き表'};
+  return {items,summaries};
  }
  function selected(item,selections){return selections[item.id]??{target:item.target,extraLabor:false};}
  function workersHint(document,selections={}){
   const labor=document.items.filter(item=>selected(item,selections).target==='labor');
-  if(!labor.length)return {needed:false,value:'0',reason:'交換作業費なし'};
-  let sum=0n;const reasons=[];
+  if(!labor.length)return {needed:false,value:'0',reason:''};
+  const manual=reason=>({needed:true,value:'',reason});
+  let sum=0n;const bases=[];
   for(const item of labor){
-   let value=null;
-   if(/^(人工|人日)$/.test(compact(item.unit))){const q=E.parse(item.quantity,'decimal');if(!q.error&&norm(item.quantity))value=q.value;}
-   if(value===null){
-    const memo=norm(item.memo),matches=memo.length>2000?[]:[...memo.matchAll(/(\d+(?:\.\d+)?)\s*日\s*[x×*]\s*(\d+(?:\.\d+)?)(?:\s*(?:名|人))?/gi)];
-    if(matches.length===1){const days=E.parse(matches[0][1],'decimal'),people=E.parse(matches[0][2],'decimal');if(!days.error&&!people.error)value=days.value*people.value/E.SCALE;}
+   const memo=norm(item.memo);
+   if(memo.length>2000||/または|もしくは|別案|未定|要確認|\d\s*(?:日|名|人)?\s*[~〜～]\s*\d|(?:\d|名|人)\s*[+\-−×*/]\s*\d/.test(memo))return manual('作業人員を確認して入力してください。');
+   const formulas=[...memo.matchAll(/(?<![\d.,+−-])(\d+(?:\.\d+)?)\s*日\s*[x×*]\s*(\d+(?:\.\d+)?)(?![\d.,])\s*(名|人(?![工日])|(?![名人]))(?!\s*[+\-−×x*/])/gi)];
+   const quantities=[...memo.matchAll(/(?<![\d.,+−-])(\d+(?:\.\d+)?)\s*(?:人工|人日)(?![数])/g)].map(match=>match[1]);
+   if(/^(人工|人日)$/.test(compact(item.unit))&&norm(item.quantity))quantities.push(item.quantity);
+   const evidence=[];
+   for(const raw of quantities){
+    const parsed=E.parse(raw,'decimal');
+    if(parsed.error)return manual('人工の表記を確認して入力してください。');
+    evidence.push({value:parsed.value,basis:E.format(parsed.value)+'人工'});
    }
-   if(value===null)return {needed:true,value:'',reason:'数量・備考だけでは確定できません。作業人員を確認して入力してください。'};
-   sum+=value;reasons.push(item.name);
+   for(const match of formulas){
+    const days=E.parse(match[1],'decimal'),people=E.parse(match[2],'decimal');
+    if(days.error||people.error)return manual('日数・人数の表記を確認して入力してください。');
+    const value=days.value*people.value/E.SCALE;
+    evidence.push({value,basis:E.format(days.value)+'日×'+E.format(people.value)+(match[3]?.trim()||'')+'＝'+E.format(value)+'人工'});
+   }
+   if(!evidence.length)return manual('数量・備考から確定できません。作業人員を入力してください。');
+   if(formulas.length>1||evidence.some(entry=>entry.value!==evidence[0].value))return manual('人工の表記が複数あるか一致しません。作業人員を確認して入力してください。');
+   sum+=evidence[0].value;bases.push(evidence.at(-1).basis);
   }
   const raw=E.format(sum).replaceAll(',',''),check=E.parse(raw,'decimal');
-  return {needed:true,value:check.error?'':raw,reason:check.error?'作業人員がCATの入力範囲外です。':reasons.join('・')+'の数量／備考から算出した候補です。必ず確認してください。'};
+  if(check.error)return manual('作業人員がCATの入力範囲外です。');
+  const basis=bases.length===1?bases[0]:`${bases.length}明細の合計 ${E.format(sum)}人工`;
+  return {needed:true,value:raw,reason:basis};
  }
  function plan(document,selections={},options={}){
   const errors=[],warnings=[],totals=Object.fromEntries(E.items.map(([id])=>[id,0n])),extras=[],excluded=[];
@@ -143,8 +165,9 @@
   }
   if(extras.length>100)errors.push('追加項目は100項目までです');
   for(const [id,total] of Object.entries(totals))if(total>1000000000000n*E.SCALE)errors.push(new Map(E.items).get(id)+'の合計がCATの入力上限を超えています');
-  const hint=workersHint(document,selections),workers=E.parse(hint.needed?(options.workers??hint.value):'0','decimal');
-  if(hint.needed&&(!norm(options.workers??hint.value)||!options.workersConfirmed||workers.error))errors.push('交換作業費の作業人員を確認してください');
+  const hint=workersHint(document,selections),rawWorkers=hint.needed?(options.workers??hint.value):'0';
+  const workers=E.parse(rawWorkers,'decimal');
+  if(hint.needed&&(!norm(rawWorkers)||workers.error))errors.push('交換作業費の作業人員を入力してください');
   const p={...Object.fromEntries(Object.entries(E.defaults).map(([id,n])=>[id,E.decimal(n)])),...options.settings,parts:totals.parts,workers:workers.error?0n:workers.value,shipping:0n};
   const rates=E.partsRates(p.parts);
   for(const id of ['materialsRate','removalRate'])if(options.autoRates?.[id]&&p.parts>0n)p[id]=rates[id];
@@ -163,7 +186,8 @@
   }
   const reportedTotal=document.summaries.filter(row=>row.kind==='total').at(-1)?.amount??null;
   if(reportedTotal!==null&&sourceValid&&reportedTotal!==sourceTotal)warnings.push('記載された最終合計と読取明細合計が一致しません。');
-  return {errors,warnings,summaries:document.summaries.map(({name,amount})=>({name,amount})),sourceTotal:sourceValid?sourceTotal:null,reportedTotal,sourceWelfare,discount,result,afterDiscount,difference:sourceValid?afterDiscount-sourceTotal:null,data:{p,adopted,memos,extraItems:extras,links:{},mode:'manual',rounded:false,order:E.defaultOrder(extras)}};
+  const sourceFinal=reportedTotal??(sourceValid?sourceTotal:null);
+  return {errors,warnings,summaries:document.summaries.map(({name,amount})=>({name,amount})),sourceTotal:sourceValid?sourceTotal:null,reportedTotal,sourceFinal,sourceWelfare,discount,result,afterDiscount,difference:sourceFinal===null?null:afterDiscount-sourceFinal,data:{p,adopted,memos,extraItems:extras,links:{},mode:'manual',rounded:false,order:E.defaultOrder(extras)}};
  }
  const api={parse,amount,classify,workersHint,plan,targets};
  if(typeof module!=='undefined')module.exports=api;else root.CompanyEstimateImport=api;

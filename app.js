@@ -554,7 +554,10 @@ window.CompanyImportUI.init({
   const values={};for(const [id,, ,kind] of settings){const parsed=E.parse($(id).value,kind);if(parsed.error)throw Error('CATの標準設定を確認してください');values[id]=parsed.value;}
   return {settings:values,autoRates:Object.fromEntries(partsRateIds.map(id=>[id,partsRateModes[id]==='auto']))};
  },
- revision:()=>updateRevision,
- hasInput:()=>basic.some(([id,,,kind])=>{const p=E.parse($(id).value,kind);return !!p.error||p.value!==0n;})||customItems.length>0||state.rows.some(row=>row.adopted!==null||state.memos[row.id])||settings.some(([id])=>$(id).value.replaceAll(',','')!==E.defaults[id])||['discount-rate','discount-amount'].some(id=>$(id).value.trim()!==''),
+ hasInput:()=>invalid||overheadRounded||customItems.length>0||Object.keys(settingSources).length>0||
+  basic.some(([id])=>$(id).value.replaceAll(',','')!==E.defaults[id])||
+  state.rows.some(row=>row.adopted!==null||state.memos[row.id])||
+  settings.some(([id])=>$(id).value.replaceAll(',','')!==E.defaults[id])||
+  ['discount-rate','discount-amount'].some(id=>$(id).value.trim()!==''),
  apply:data=>{const modes={...partsRateModes},sources={...settingSources};restoreConditions({...data,partsRateModes:modes,settingSources:sources});resetImport();catFeedback('copy');}
 });

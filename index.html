@@ -9,7 +9,7 @@
 <meta name="application-name" content="CAT">
 <meta name="apple-mobile-web-app-title" content="CAT">
 <meta name="theme-color" content="#245b86">
-<title>CAT</title><link rel="stylesheet" href="styles.css?v=24"><script src="calc.js?v=19" defer></script><script src="portable.js?v=4" defer></script><script src="company-import.js?v=1" defer></script><script src="company-import-ui.js?v=1" defer></script><script src="app.js?v=26" defer></script>
+<title>CAT</title><link rel="stylesheet" href="styles.css?v=25"><script src="calc.js?v=19" defer></script><script src="portable.js?v=4" defer></script><script src="company-import.js?v=2" defer></script><script src="company-import-ui.js?v=2" defer></script><script src="app.js?v=27" defer></script>
 <link rel="stylesheet" href="cat.css?v=1"><script src="cat.js?v=3" defer></script>
 </head>
 <body>
@@ -29,17 +29,37 @@
  <button id="check-import" type="button" class="button secondary">内容を確認</button><p id="import-error" class="input-error" role="status"></p>
  <div id="import-preview" hidden><pre id="import-summary"></pre><button id="apply-import" type="button" class="button primary">この条件を反映</button></div><p id="import-notice" class="notice" role="status"></p>
 </details>
-<details id="company-panel" class="panel import-panel company-panel"><summary>社内見積データを読み込む</summary>
- <p class="field-guide">社内システムの明細全体を貼り付け、分類と金額を確認してから反映します。解析だけでは現在のCAT入力を変更しません。</p>
- <label class="input-label" for="company-text">コピーした明細（タブ区切り・見出し付き表）</label><textarea id="company-text" rows="6" maxlength="200000" autocomplete="off" spellcheck="false" placeholder="売価行・原価行を含む明細をまとめて貼り付け"></textarea>
- <div class="company-actions"><button id="company-parse" type="button" class="button secondary">解析して確認</button><button id="company-clear" type="button" class="text-button">貼付内容を消去</button></div>
+<details id="company-panel" class="panel import-panel company-panel">
+ <summary>社内見積データを読み込む</summary>
+ <div class="company-input-heading"><label class="input-label" for="company-text">コピーした明細</label><button id="company-clear" type="button" class="text-button">消去</button></div>
+ <textarea id="company-text" rows="3" autocomplete="off" spellcheck="false" placeholder="社内システムでコピーした明細を貼り付け"></textarea>
  <p id="company-error" class="input-error" role="status"></p>
- <div id="company-review" hidden><div class="company-table-heading" aria-hidden="true"><span>元の費目名称・判定</span><span>売価金額</span><span>CATへの振り分け先</span></div><div id="company-rows"></div>
-  <div id="company-worker-fields" class="company-worker-fields" hidden><label class="input-label" for="company-workers">作業人員（人工相当・CATの共通入力）</label><input id="company-workers" type="text" inputmode="decimal" autocomplete="off" aria-describedby="company-workers-help"><p id="company-workers-help" class="field-guide"></p><label class="import-option"><input id="company-workers-confirmed" type="checkbox">作業人員を確認しました</label><p class="field-guide">送料は元データの金額を採用するため、CATの作業員交通費を重ねて加算しません。</p></div>
-  <div id="company-skipped" class="inline-help"></div><ul id="company-messages" class="company-messages" aria-live="polite"></ul>
- </div><div id="company-balance" class="company-balance" hidden></div>
- <div id="company-commit" hidden><label id="company-replace-option" class="import-option" hidden><input id="company-replace" type="checkbox">現在のCAT入力を置き換えることを確認しました</label><button id="company-apply" type="button" class="button primary" disabled>CATに反映</button></div>
- <p id="company-notice" class="notice" role="status"></p>
+ <div class="company-preview">
+  <div id="company-review" hidden>
+   <h3>費目別の集計</h3>
+   <dl id="company-aggregates" class="company-aggregates"></dl>
+   <div id="company-worker-fields" class="company-worker-fields" hidden>
+    <p>作業人員 <strong id="company-workers-help"></strong></p>
+    <details id="company-worker-edit" class="inline-help">
+     <summary id="company-worker-toggle">作業人員を変更</summary>
+     <label class="input-label" for="company-workers">作業人員（人工）</label>
+     <input id="company-workers" type="text" inputmode="decimal" autocomplete="off" aria-describedby="company-workers-help">
+    </details>
+   </div>
+   <section id="company-issue-area" class="company-issue-area" aria-labelledby="company-issue-title" hidden>
+    <h3 id="company-issue-title"></h3>
+    <div id="company-issues"></div>
+   </section>
+   <ul id="company-messages" class="company-messages" aria-live="polite"></ul>
+   <details id="company-detail" class="inline-help">
+    <summary id="company-detail-toggle">明細と振り分け先を確認・変更</summary>
+    <div id="company-rows"></div>
+   </details>
+  </div>
+  <div id="company-balance" class="company-balance" hidden></div>
+ </div>
+ <div id="company-commit" hidden><button id="company-apply" type="button" class="button primary" disabled>CATに反映</button></div>
+ <p id="company-notice" class="notice" role="status" tabindex="-1"></p>
 </details>
 <form id="estimate-form" autocomplete="off" novalidate>
 <section class="panel" aria-labelledby="basic-title"><div class="section-heading"><h2 id="basic-title"><span class="step">01</span>基本入力</h2><span class="muted small">金額は税別</span></div><div id="basic-fields" class="basic-grid"></div><p class="field-guide">Enter／次へで入力欄を移動できます。作業人員は交換作業費と送料に共通です。1.5人など、小数も入力できます。</p></section>
@@ -128,7 +148,7 @@
 </section>
 <section class="panel" aria-labelledby="changes-title"><div class="section-heading"><h2 id="changes-title"><span class="step">03</span>標準から変更した項目</h2><span id="change-count" class="tag"></span></div><p id="review-guide" class="review-guide" hidden>赤枠：標準との差が1％以上、かつ差額100円以上（標準額100万円以上は1,000円以上）。</p><div id="setting-changes" class="setting-changes" hidden><h3>標準設定の変更</h3><ul id="setting-change-list"></ul></div><div id="changes"></div></section>
 <section class="panel export-panel" aria-labelledby="export-title"><div class="section-heading"><div><h2 id="export-title"><span class="step">04</span>結果を持ち出す</h2><p class="muted small">条件・内訳・補正理由をまとめた確認シートを生成します。</p></div></div><div class="export-actions"><button id="save-image" class="button primary">画像として保存 <span>PNG ↓</span></button><button id="copy-text" class="button secondary">結果をテキストでコピー</button><button id="copy-simple" class="button secondary">簡易版をコピー</button><button id="preview" class="text-button">保存用サマリーを確認</button></div><p class="field-guide">簡易版は掛率・採用額・メモを短くまとめます。後日、画面上部に貼り付けると同じ条件で再計算できます。</p><details id="simple-preview" class="simple-preview"><summary>簡易コピーの内容を確認</summary><pre id="simple-text"></pre></details><div id="summary-preview" hidden><h3>見積計算結果の確認シート</h3><pre id="summary-text"></pre></div><div id="image-fallback" hidden><p>保存が始まらない場合は、画像を長押しするか、下のリンクから保存してください。</p><a id="image-link" download>PNG画像をダウンロード</a><img id="export-image" alt="見積計算結果の確認シート"></div><div id="copy-fallback" hidden><label for="copy-area">コピーできない場合は、以下を選択してコピーしてください。</label><textarea id="copy-area" readonly rows="14"></textarea></div><p id="notice" role="status" class="notice"></p></section>
-<footer><span class="footer-product">CAT <small id="app-version">v1.4.0</small></span><span>計算はブラウザ内で完結 · 保存はあなたの操作で</span></footer>
+<footer><span class="footer-product">CAT <small id="app-version">v1.5.0</small></span><span>計算はブラウザ内で完結 · 保存はあなたの操作で</span></footer>
 </main>
 
 </body></html>

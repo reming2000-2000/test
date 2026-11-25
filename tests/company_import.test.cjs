@@ -1,12 +1,12 @@
 const assert=require('node:assert/strict'),C=require('../company-import'),E=require('../calc'),v=E.decimal;
 // Fictional names and costs; preserve the supplied system's row/column structure.
 const {sample}=require('./company_sample.cjs');
-const doc=C.parse(sample);assert.equal(doc.items.length,16);assert.equal(doc.notices.length,17);assert.equal(doc.summaries[0].amount,v('17658300'));
+const doc=C.parse(sample);assert.equal(doc.items.length,16);assert.equal(doc.summaries[0].amount,v('17658300'));
 const material=doc.items.find(row=>row.name.includes('工事機材費'));
-assert.equal(material.status,'review');assert.equal(material.target,'');
-const choices={[material.id]:{target:'materials'}},hint=C.workersHint(doc,choices);
-assert.equal(hint.value,'39');assert.equal(C.plan(doc,choices).errors.length,1);
-let plan=C.plan(doc,choices,{workers:'39',workersConfirmed:true});assert.deepEqual(plan.errors,[]);
+assert.equal(material.status,'auto');assert.equal(material.target,'materials');
+const choices={},hint=C.workersHint(doc);
+assert.equal(hint.value,'39');assert.equal(hint.reason,'13日×3＝39人工');
+let plan=C.plan(doc);assert.deepEqual(plan.errors,[]);
 assert.equal(plan.data.p.parts,v('11692000'));assert.equal(plan.data.adopted.labor,v('2262000'));
 for(const [id,n] of Object.entries({materials:'435000',shipping:'650000',protection:'260000',overhead:'1605300',removal:'0'}))assert.equal(plan.data.adopted[id],v(n));
 assert.equal(plan.data.extraItems[0].amount,v('754000'));assert.equal(plan.data.extraItems[0].tag,'other');
@@ -15,31 +15,59 @@ assert.equal(plan.afterDiscount,v('18000000'));assert.equal(plan.sourceTotal,v('
 assert.equal(E.ratio(v('435000'),v('11692000'),2,false),'3.72％');
 assert.equal(plan.data.p.shipping,0n);assert.equal(plan.data.mode,'manual');
 const extra=doc.items.find(row=>row.target==='extra');choices[extra.id]={target:'extra',extraLabor:true};
-plan=C.plan(doc,choices,{workers:'39',workersConfirmed:true});assert.ok(plan.result.welfare>v('369045'));assert.ok(plan.warnings.some(line=>line.includes('法定福利費の差額')));
+plan=C.plan(doc,choices);assert.ok(plan.result.welfare>v('369045'));assert.ok(plan.warnings.some(line=>line.includes('法定福利費の差額')));
 for(const raw of ['-27,345','−27,345','▲27,345','(27,345)','－２７，３４５円','￥-27,345'])assert.equal(C.amount(raw),-v('27345'));
 for(const raw of ['abc','1,23','メモ100円','12.345','1e4'])assert.equal(C.amount(raw),null);
 assert.equal(C.classify('交通費','FREE部品',v('50')).target,'parts');
 assert.equal(C.classify('費用','経費',v('50')).target,'');
 assert.equal(C.classify('撤去処分・運搬費','経費',v('50')).status,'review');
+for(const name of ['現場諸材料・工事機材費','現場 諸材料、工事機材費','現場諸材料，工事機材費','消耗資材費'])assert.equal(C.classify(name,'経費',v('50')).target,'materials');
+for(const name of ['交通費（部品送料含む）','作業員交通費・部品輸送費'])assert.equal(C.classify(name,'経費',v('50')).target,'shipping');
+assert.equal(C.classify('工事機材費','経費',v('50')).candidate,'materials');
+assert.equal(C.classify('諸材料・工事機材費・交通費','経費',v('50')).target,'');
+assert.equal(C.classify('運搬費・値引','経費',-v('50')).target,'');
+
 assert.equal(C.classify('返却金','経費',-v('50')).target,'');
 const header='番号\t区分\t品名\t数量\t単位\t単価\t売価金額\t原価\t備考';
 const flat=C.parse(header+'\n1\tFREE部品\t架空A\t2\t個\t100\t200\t50\t9,999円\n2\t経費\t交換作業費\t1.5\t人工\t58000\t87000\t54000\t');
 assert.equal(flat.items[0].amount,v('200'));assert.equal(C.workersHint(flat).value,'1.5');
 assert.equal(C.workersHint(C.parse(header+'\n1\t経費\t交換作業費\t1\t式\t58000\t58000\t36000\t')).value,'');
+const labor=(memo,quantity='1',unit='式')=>C.parse([header,['1','経費','交換作業費',quantity,unit,'58000','58000','36000',memo].join('\t')].join('\n'));
+assert.equal(C.workersHint(labor('１３日 × ３名＝39人工','39','人工')).reason,'13日×3名＝39人工');
+assert.equal(C.workersHint(labor('作業員39人日')).value,'39');
+for(const input of [labor('13日×3名＝40人工'),labor('13日×3名','40','人工'),labor('13日×3名または13日×2名'),labor('13〜15日×3名'),labor('13日×3名 + 2日×2名'),labor('根拠記載なし')]){
+ assert.equal(C.workersHint(input).value,'');
+ assert.ok(C.plan(input).errors.some(error=>error.includes('作業人員')));
+ assert.equal(C.plan(input,{},{workers:'2.5'}).data.p.workers,v('2.5'));
+}
+assert.equal(C.plan(labor('13日×3名'),{},{workers:'2.5'}).data.p.workers,v('2.5'));
+assert.ok(C.plan(labor('13日×3名'),{},{workers:''}).errors.length);
+
 const quoted=C.parse(header+'\n1\t経費\t"架空の\n費用"\t1\t式\t100\t100\t0\t"備考\t10000"');assert.equal(quoted.items.length,1);
 const table=C.parse('|番号|区分|品名|売価金額|原価|\n|---|---|---|---|---|\n|1|FREE部品|架空A|200|50|');assert.equal(table.items[0].amount,v('200'));
+const separated=C.parse('\n\t\t\n'+sample.replace('\n0\t0\n','\n0\t\t0\t\n').split('\n').join('\n\t\t\n──\t──\n'));
+assert.equal(separated.items.length,doc.items.length);assert.deepEqual(C.plan(separated).errors,[]);
+const headerLike=C.parse('品名\t売価金額\t備考\n品名\t不明\t金額\n架空A\t100\t');
+assert.equal(headerLike.items[0].status,'error');assert.equal(headerLike.items[1].amount,v('100'));
 const unknown=C.parse(sample+'\n予期しない行');assert.equal(unknown.items.at(-1).status,'error');
 assert.ok(C.plan(unknown,{},{}).errors.length);assert.equal(C.plan(unknown,{},{}).sourceTotal,null);
 const bad=C.parse(header+'\n1\tFREE部品\t架空A\t1\t個\t100\t不明\t50\t');
 assert.ok(C.plan(bad,{[bad.items[0].id]:{target:'exclude'}}).warnings.some(line=>line.includes('確認できません')));
-const mismatch=C.parse(sample.replace('17,658,300','17,658,301'));assert.ok(C.plan(mismatch,choices,{workers:'39',workersConfirmed:true}).warnings.some(line=>line.includes('一致しません')));
+const mismatch=C.parse(sample.replace('17,658,300','17,658,301'));assert.ok(C.plan(mismatch,choices).warnings.some(line=>line.includes('一致しません')));
 const grouped=C.parse(header+'\n1\t経費\t諸材料A\t1\t式\t100\t100\t50\t\n2\t経費\t消耗資材B\t1\t式\t200\t200\t50\t\n3\t小計\t合計\t\t\t\t300\t\t');
 assert.equal(C.plan(grouped).data.adopted.materials,v('300'));assert.equal(C.plan(grouped).reportedTotal,v('300'));
 const positiveDiscount=C.parse(header+'\n1\tFREE部品\t架空A\t1\t個\t1000\t1000\t100\t\n2\t経費\t値引\t1\t式\t100\t100\t0\t\n3\t小計\t合計\t\t\t\t900\t\t');
 assert.equal(positiveDiscount.items[1].target,'');assert.deepEqual(C.plan(positiveDiscount,{'source_2':{target:'discount'}}).warnings.filter(line=>line.includes('一致しません')),[]);
+const finalMismatch=C.parse(groupedSource());
+function groupedSource(){return header+'\n1\t経費\t諸材料A\t1\t式\t100\t100\t50\t\n2\t小計\t合計\t\t\t\t110\t\t';}
+assert.equal(C.plan(finalMismatch).sourceFinal,v('110'));assert.equal(C.plan(finalMismatch).difference,-v('10'));
+const badCost=C.parse(sample.replace('2,000,000\t2,000,000','不明\t2,000,000'));
+assert.equal(badCost.items[1].status,'error');
+const unexpectedSale=C.parse(sample.replace('2\tFREE部品\t架空部品B','2\tFREE部品\t'));
+assert.ok(unexpectedSale.items.some(item=>item.status==='error'));
 const duplicate=C.parse(header+'\n1\tFREE部品\t架空A\t1\t個\t100\t100\t50\t\n1\tFREE部品\t架空B\t1\t個\t200\t200\t50\t');assert.equal(duplicate.items[1].status,'error');
 const huge=C.parse(header+'\n1\tFREE部品\t架空A\t1\t個\t1000000000000\t1000000000000\t0\t\n2\tFREE部品\t架空B\t1\t個\t1\t1\t0\t');assert.ok(C.plan(huge).errors.some(text=>text.includes('上限')));
 const excessColumns=C.parse('品名\t金額\n架空\t100\t200');assert.equal(excessColumns.items[0].status,'error');
 assert.throws(()=>C.parse('費目  金額\n不明  100'));assert.throws(()=>C.parse('x'.repeat(200001)));
-console.log('PASS: 社内2行形式・原価/数量/備考/小計の二重計上防止・補助行/番号相違・手動分類・39人工確認・指定金額/比率/値引整合・福利対象・TSV/表/引用符・不正/未読取/負額');
+console.log('PASS: 社内2行形式・原価/数量/備考/小計の二重計上防止・補助行/番号相違・手動分類・39人工自動採用/矛盾判定・指定金額/比率/値引整合・福利対象・TSV/表/引用符・不正/未読取/負額');
 module.exports={sample};
