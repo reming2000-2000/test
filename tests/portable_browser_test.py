@@ -70,7 +70,7 @@ with sync_playwright() as p:
  assert page.locator('#link-help-materials').is_hidden()
  # Restore original fixed amounts by unchecking the proportional option.
  prepare(compact,False);apply();assert page.locator('#grand-total').inner_text()==original
- expect(page.locator('#fixed-adoption-materials')).to_be_visible()
+ expect(page.locator('#adoption-state-materials')).to_have_text('手動固定')
  expect(page.locator('#row-overhead')).to_have_attribute('data-overhead-mode','manual')
  assert copy()==compact
  fill('parts','1700000');assert page.locator('#booked-materials').inner_text()=='70,000円'

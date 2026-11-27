@@ -108,7 +108,7 @@ with sync_playwright() as p:
  page.locator('#reset').click()
  assert page.locator('#cost-rows details[open]').count()==0
  # Batch rounding leaves both the parts input and its adopted value untouched.
- assert page.locator('details.settings + .rounding-toolbar #round-standard').count()==1
+ assert page.locator('details.settings ~ .rounding-toolbar #round-standard').count()==1
  for before,after in [('1552110','1,552,110'),('155211','155,211'),('15521','15,521'),('1550','1,550')]:
   fill(page.locator('#parts'),before);page.locator('#round-standard').click()
   assert page.locator('#adopt-parts').input_value()==''

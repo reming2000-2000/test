@@ -238,6 +238,7 @@
  }
  function plan(document,selections={},options={}){
   const errors=[],warnings=[],totals=Object.fromEntries(E.items.map(([id])=>[id,0n])),extras=[],excluded=[];
+  const presentItemIds=new Set();
   let sourceTotal=0n,sourceValid=true,sourceWelfare=0n,discount=0n;
   for(const item of document.items){
    const choice=selected(item,selections),target=choice.target;
@@ -252,8 +253,13 @@
    if(target==='welfare')continue;
    if(target==='extra'){
     if(item.name.length>40||/[\r\n]/.test(item.name)){errors.push('追加項目の名称は改行なし・40文字以内にしてください');continue;}
-    extras.push({id:'custom_'+(extras.length+1),label:item.name,amount:item.amount,tag:choice.extraLabor?'labor':'other'});
-   }else totals[target]+=item.amount;
+    const id='custom_'+(extras.length+1);
+    extras.push({id,label:item.name,amount:item.amount,tag:choice.extraLabor?'labor':'other'});
+    presentItemIds.add(id);
+   }else{
+    totals[target]+=item.amount;
+    presentItemIds.add(target);
+   }
   }
   if(extras.length>100)errors.push('追加項目は100項目までです');
   for(const [id,total] of Object.entries(totals))if(total>1000000000000n*E.SCALE)errors.push(new Map(E.items).get(id)+'の合計がCATの入力上限を超えています');
@@ -279,7 +285,7 @@
   const reportedTotal=document.summaries.filter(row=>row.kind==='total').at(-1)?.amount??null;
   if(reportedTotal!==null&&sourceValid&&reportedTotal!==sourceTotal)warnings.push('記載された最終合計と読取明細合計が一致しません。');
   const sourceFinal=reportedTotal??(sourceValid?sourceTotal:null);
-  return {errors,warnings,summaries:document.summaries.map(({name,amount})=>({name,amount})),sourceTotal:sourceValid?sourceTotal:null,reportedTotal,sourceFinal,sourceWelfare,discount,result,afterDiscount,difference:sourceFinal===null?null:afterDiscount-sourceFinal,data:{p,adopted,memos,extraItems:extras,links:{},mode:'manual',rounded:false,order:E.defaultOrder(extras)}};
+  return {errors,warnings,summaries:document.summaries.map(({name,amount})=>({name,amount})),sourceTotal:sourceValid?sourceTotal:null,reportedTotal,sourceFinal,sourceWelfare,discount,result,afterDiscount,difference:sourceFinal===null?null:afterDiscount-sourceFinal,data:{p,adopted,memos,extraItems:extras,links:{},mode:'manual',rounded:false,order:E.defaultOrder(extras),presentItemIds:[...presentItemIds]}};
  }
  const api={parse,amount,classify,workersHint,plan,targets};
  if(typeof module!=='undefined')module.exports=api;else root.CompanyEstimateImport=api;

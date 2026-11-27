@@ -9,8 +9,9 @@ const descriptors=[...basic,...settings];
 let customItems=[],nextCustomId=1;
 let rowOrder=E.defaultOrder(),editingItems=false,itemDrag=null;
 let rateLinks={};
-let roundUndo=null,copyEpoch=0,updateRevision=0;
+let adoptionUndo=null,copyEpoch=0,updateRevision=0;
 let roundedItems=new Set(); // Only adoptions written by rounding in this page session.
+let companyAdoptions=null; // Map of untouched import adoptions and whether each has a source line.
 const copiedValues=new Map();
 let settingSources={};
 const partsRateIds=["materialsRate","removalRate"];
@@ -48,7 +49,7 @@ function renderPartsRateModes(){
  $('reset-parts-rates').hidden=partsRateIds.every(id=>partsRateModes[id]==='auto');
  document.querySelectorAll('[data-reference-band]').forEach(row=>row.classList.toggle('current-band',valid&&Number(row.dataset.referenceBand)===E.partsRates(parsed.value).band));
 }
-$('reset-parts-rates').addEventListener('click',()=>{finishItemDrag(true,false);invalidateRoundUndo();resetPartsRateModes();syncPartsRates();update();});
+$('reset-parts-rates').addEventListener('click',()=>{finishItemDrag(true,false);clearAdoptionUndo();resetPartsRateModes();syncPartsRates();update();});
 const copyIcon='<svg viewBox="0 0 24 24" width="14" height="14" aria-hidden="true" focusable="false"><rect x="8" y="8" width="12" height="13" rx="2"></rect><path d="M16 8V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h3"></path></svg>';
 // Decorative inline SVGs: fixed local paths, never interactive or included in copies.
 const expenseIconPaths={
@@ -72,7 +73,7 @@ function createCostRow(id,label,custom=false){
   <span id="item-tag-${id}" class="item-tag-badge" hidden></span><div class="basis-inline"><span id="basis-${id}" class="basis"></span>${rowCopyButton(id,label,'basis')}</div>
  </div>
  ${custom?'<div class="money-cell standard-cell"><label class="custom-label" for="custom-amount-'+id+'">金額（円）</label><input id="custom-amount-'+id+'" type="text" data-kind="money" inputmode="decimal" value="0" aria-label="'+label+'の金額（円）" aria-describedby="custom-amount-'+id+'-error"><span id="custom-amount-'+id+'-error" class="input-error"></span></div>':'<div class="money-cell standard-cell"><span class="cell-label">標準額</span><span id="standard-'+id+'"></span></div>'}
- <div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error"><span id="adopt-${id}-error" class="input-error"></span><small id="link-help-${id}" class="link-help" hidden></small><small id="fixed-adoption-${id}" class="fixed-adoption" title="採用額を空欄にすると標準額に戻ります" hidden>採用額を固定中</small>${id==='overhead'?'<small id="overhead-help" class="overhead-help">入力で手動固定・空欄で自動に戻る</small>':''}</div>
+ <div class="adoption"><label for="adopt-${id}" class="input-label">${label}の採用額（円）</label><input id="adopt-${id}" type="text" data-kind="money" data-optional="true" inputmode="decimal" placeholder="標準額を使用" aria-label="${label}の採用額（円）" aria-describedby="adopt-${id}-error ${id==='overhead'?'overhead-mode-label':'adoption-state-'+id} link-help-${id}"><span id="adopt-${id}-error" class="input-error"></span><small id="link-help-${id}" class="link-help" hidden></small>${id==='overhead'?'':'<small id="adoption-state-'+id+'" class="adoption-state"></small>'}</div>
  <div class="money-cell booked-cell"><span class="cell-label">見積計上額</span><div class="amount-inline"><strong id="booked-${id}"></strong>${rowCopyButton(id,label,'amount')}</div>${E.expenseCostIds.includes(id)||id==='labor'?'<div class="expense-cost-line" id="cost-info-'+id+'" title="'+(id==='labor'?'作業人員×36,000円、1円未満切り捨て':'見積計上額×62％（利益率38％）、1円未満切り捨て')+'"><span>参考原価</span><span id="'+(id==='labor'?'labor-cost':'cost-'+id)+'"></span>'+rowCopyButton(id,label,'cost')+'</div>':''}${id==='labor'?'<p id="labor-cost-warning" class="cost-warning" role="status" hidden>参考原価を下回っています</p>':''}</div>
  <div id="adjustment-${id}" class="adjustment-summary" hidden><span>標準からの補正</span><strong id="diff-${id}"></strong><span id="ratio-${id}"></span></div>
  ${itemEditorMarkup(id,custom)}
@@ -85,14 +86,42 @@ for(const [id,label] of E.items)$('cost-rows').append(createCostRow(id,label));
 const customToolbar=document.createElement('div');customToolbar.className='custom-add-toolbar';
 customToolbar.innerHTML='<button id="add-custom-item" type="button" class="button secondary">＋ 項目を追加</button>';
 $('cost-rows').insertBefore(customToolbar,$('row-overhead'));
-$('add-custom-item').addEventListener('click',()=>{
- finishItemDrag(true,false);invalidateRoundUndo();
+const insertionSlots=[];
+function insertCustomItem(beforeId){
+ finishItemDrag(true,false);
+ const index=beforeId===''?rowOrder.length:rowOrder.indexOf(beforeId);
+ if(index<0)return;
+ clearAdoptionUndo();
  const item={id:'custom_'+nextCustomId,label:'追加項目'+nextCustomId};nextCustomId++;
- customItems.push(item);rowOrder.splice(rowOrder.indexOf('overhead'),0,item.id);$('cost-rows').append(createCostRow(item.id,item.label,true));syncRowDOM();
+ customItems.push(item);
+ rowOrder.splice(index,0,item.id);
+ $('cost-rows').append(createCostRow(item.id,item.label,true));
+ syncRowDOM();
  update();$('custom-name-'+item.id).focus();
-});
+}
+$('add-custom-item').addEventListener('click',()=>insertCustomItem('overhead'));
+function insertionButton(index,row){
+ let button=insertionSlots[index];
+ if(!button){
+  button=document.createElement('button');button.type='button';
+  button.className='text-button item-insert-button';button.textContent='＋ ここに追加';
+  insertionSlots[index]=button;
+ }
+ button.dataset.insertBefore=row?row.id.slice(4):'';
+ button.setAttribute('aria-label',row?row.getAttribute('aria-label')+'の前に項目を追加':'末尾に項目を追加');
+ return button;
+}
 function syncRowDOM(){
- for(const id of rowOrder){if(id==='overhead')$('cost-rows').append(customToolbar);$('cost-rows').append($('row-'+id));}
+ const root=$('cost-rows');
+ const slotCount=editingItems?rowOrder.length+1:0;
+ for(const button of insertionSlots.splice(slotCount))button.remove();
+ for(const [index,id] of rowOrder.entries()){
+  const row=$('row-'+id);
+  if(editingItems)root.append(insertionButton(index,row));
+  if(id==='overhead')root.append(customToolbar);
+  root.append(row);
+ }
+ if(editingItems)root.append(insertionButton(rowOrder.length,null));
 }
 function itemEditorMarkup(id,custom){
  const options=E.itemTags.map(([code,label])=>`<option value="${code}">${label}${code==='labor'?'（法定対象）':''}</option>`).join('');
@@ -107,6 +136,7 @@ function renderItemEditors(){
   badge.textContent=(new Map(E.itemTags).get(row.tag)||row.label)+(row.tag==='labor'?'・法定福利費対象':'');
   if(!row.custom)$('category-'+row.id).textContent=row.label+(row.tag==='labor'?'（法定福利費対象）':'');
   const position=rowOrder.indexOf(row.id);
+  if(editingItems)insertionSlots[position].setAttribute('aria-label',row.label+'の前に項目を追加');
   for(const button of $('editor-'+row.id).querySelectorAll('[data-move-item]')){
    const direction=Number(button.dataset.direction);button.disabled=direction<0?position===0:position===rowOrder.length-1;
    button.setAttribute('aria-label',row.label+'を'+(direction<0?'上':'下')+'へ移動');
@@ -121,13 +151,15 @@ function repositionItem(id,index){
 }
 function announceItemMove(id){const row=state.rows.find(row=>row.id===id);$('item-order-status').textContent=row.label+'を'+(rowOrder.indexOf(id)+1)+'番目へ移動しました。';}
 $('edit-items').addEventListener('click',()=>{
- finishItemDrag(true);editingItems=!editingItems;renderItemEditors();$('item-order-status').textContent='';
+ finishItemDrag(true);editingItems=!editingItems;syncRowDOM();renderItemEditors();$('item-order-status').textContent='';
 });
 $('cost-rows').addEventListener('click',event=>{
+ const insert=event.target.closest('[data-insert-before]');
+ if(insert&&editingItems){insertCustomItem(insert.dataset.insertBefore);return;}
  const button=event.target.closest('[data-move-item]');if(!button||!editingItems)return;
  finishItemDrag(true,false);
  const id=button.dataset.moveItem;
- if(repositionItem(id,rowOrder.indexOf(id)+Number(button.dataset.direction))){invalidateRoundUndo();update();announceItemMove(id);(button.disabled?$('editor-'+id).querySelector('[data-drag-item]'):button).focus({preventScroll:true});$('row-'+id).scrollIntoView({block:'nearest'});}
+ if(repositionItem(id,rowOrder.indexOf(id)+Number(button.dataset.direction))){clearAdoptionUndo();update();announceItemMove(id);(button.disabled?$('editor-'+id).querySelector('[data-drag-item]'):button).focus({preventScroll:true});$('row-'+id).scrollIntoView({block:'nearest'});}
 });
 function previewItemDrag(){
  if(!itemDrag?.active)return;
@@ -153,7 +185,7 @@ function finishItemDrag(cancel=false,refresh=true){
  const changed=rowOrder.join('|')!==saved.order.join('|');
  if(cancel&&changed){rowOrder=saved.order;syncRowDOM();}
  if(refresh){
-  if(changed&&!cancel)invalidateRoundUndo();
+  if(changed&&!cancel)clearAdoptionUndo();
   if(changed&&!cancel){update();announceItemMove(saved.id);}else{renderItemEditors();refreshNavigationHint();}
   saved.handle.focus({preventScroll:true});
  }
@@ -162,8 +194,9 @@ $('cost-rows').addEventListener('pointerdown',event=>{
  const handle=event.target.closest('[data-drag-item]');
  if(!handle||!editingItems||event.button!==0||!event.isPrimary||itemDrag)return;
  const id=handle.dataset.dragItem,rect=$('row-'+id).getBoundingClientRect();
+ const offset=event.pointerType==='touch'?0:event.clientY-(rect.top+rect.height/2);
  event.preventDefault();handle.focus({preventScroll:true});
- itemDrag={id,handle,pointerId:event.pointerId,startY:event.clientY,y:event.clientY,offset:event.clientY-(rect.top+rect.height/2),order:rowOrder.slice(),active:false,frame:0};
+ itemDrag={id,handle,pointerId:event.pointerId,startY:event.clientY,y:event.clientY,offset,order:rowOrder.slice(),active:false,frame:0};
  handle.setPointerCapture(event.pointerId);
 });
 document.addEventListener('pointermove',event=>{
@@ -183,20 +216,151 @@ let overheadRounded=false,overheadManual=false,overheadFixedBasis=null;
 function overheadMode(){if(rateLinks.overhead)return 'linked';return overheadManual?'manual':overheadRounded?'rounded':'auto';}
 function overheadModeLabel(){if(rateLinks.overhead)return '引継掛率で自動連動';return overheadManual?'手動固定':overheadRounded?'自動連動・端数調整':'自動連動';}
 function resetOverhead(){rateLinks={};overheadRounded=false;overheadManual=false;overheadFixedBasis=null;}
+function adoptionMode(row){
+ if(row.id==='overhead')return overheadMode();
+ if(rateLinks[row.id])return 'linked';
+ if(row.adopted===null)return 'auto';
+ return roundedItems.has(row.id)?'rounded':'manual';
+}
+function adoptionLabel(row,mode){
+ if(mode==='manual'&&companyAdoptions?.has(row.id)){
+  if(!companyAdoptions.get(row.id))return '明細なし・0円固定';
+  return row.adopted===0n?'取込の0円を固定中':'取込額を固定中';
+ }
+ if(row.id==='overhead')return overheadModeLabel();
+ if(mode==='auto'&&row.custom)return '金額欄の入力を使用';
+ if(mode==='auto'&&row.id==='parts')return '基本入力に連動';
+ return {auto:'自動計算',manual:'手動固定',rounded:'端数調整済み',linked:'引継掛率で連動'}[mode];
+}
+function renderAdoptionState(row){
+ const id=row.id,mode=adoptionMode(row),link=rateLinks[id];
+ const valid=$('adopt-'+id).getAttribute('aria-invalid')!=='true';
+ $('row-'+id).dataset.adoptionMode=valid?mode:'invalid';
+ const caption=$(id==='overhead'?'overhead-mode-label':'adoption-state-'+id);
+ caption.hidden=id!=='overhead'&&(!valid||mode==='linked');
+ caption.textContent=valid?adoptionLabel(row,mode):'入力を確認';
+ const help=$('link-help-'+id);
+ help.hidden=!link;
+ if(link){
+  $('adopt-'+id).value=E.format(row.booked);
+  const basis=E.ratio(link.amount,link.base,4,false);
+  help.textContent=id==='overhead'?'小計比 約'+basis:'引継掛率で連動（部品代比 約'+basis+'）';
+ }
+}
 const copyingButtons=new Set();
 const copyFeedbackTimers=new Map();
 // Transient UI state only. These helpers never change the calculation formulas.
-function invalidateRoundUndo(){roundUndo=null;$('undo-round').hidden=true;$('undo-round-help').hidden=true;}
-function resetWorkflow(){finishItemDrag(true,false);window.CompanyImportUI?.reset();editingItems=false;$('item-order-status').textContent='';invalidateRoundUndo();roundedItems.clear();$('adjustment-breakdown').open=false;copiedValues.clear();copyEpoch++;settingSources={};}
-function captureRoundState(){
- return {adopted:Object.fromEntries(itemDefinitions().map(([id])=>[id,$('adopt-'+id).value])),roundedItems:new Set(roundedItems),links:structuredClone(rateLinks),rounded:overheadRounded,manual:overheadManual,basis:overheadFixedBasis,details:Object.fromEntries(itemDefinitions().map(([id])=>[id,$('detail-'+id).open]))};
+function clearAdoptionUndo(){adoptionUndo=null;$('undo-round').hidden=true;$('undo-round-help').hidden=true;}
+function resetWorkflow(){
+ finishItemDrag(true,false);window.CompanyImportUI?.reset();editingItems=false;$('item-order-status').textContent='';
+ clearAdoptionUndo();roundedItems.clear();$('adjustment-breakdown').open=false;copiedValues.clear();copyEpoch++;settingSources={};
+ companyAdoptions=null;clearCompanyRecalcSelection();$('company-recalc').open=false;
+ $('company-recalc-results').replaceChildren();
+}
+function captureAdoptionState(kind){
+ return {
+  kind,adopted:Object.fromEntries(itemDefinitions().map(([id])=>[id,$('adopt-'+id).value])),
+  roundedItems:new Set(roundedItems),links:structuredClone(rateLinks),
+  rounded:overheadRounded,manual:overheadManual,basis:overheadFixedBasis,
+  companyAdoptions:companyAdoptions===null?null:new Map(companyAdoptions),
+  details:Object.fromEntries(itemDefinitions().map(([id])=>[id,$('detail-'+id).open]))
+ };
 }
 $('undo-round').addEventListener('click',()=>{
- if(!roundUndo)return;const saved=roundUndo;invalidateRoundUndo();
+ if(!adoptionUndo)return;const saved=adoptionUndo;clearAdoptionUndo();
  for(const [id,value] of Object.entries(saved.adopted))$('adopt-'+id).value=value;
  roundedItems=saved.roundedItems;rateLinks=saved.links;overheadRounded=saved.rounded;overheadManual=saved.manual;overheadFixedBasis=saved.basis;
+ companyAdoptions=saved.companyAdoptions;clearCompanyRecalcSelection();
  update();for(const [id,open] of Object.entries(saved.details))$('detail-'+id).open=open;
- $('round-notice').textContent='端数調整前の採用額・諸経費の連動状態に戻しました。';
+ const recalc=saved.kind==='recalc';
+ $('round-notice').textContent=(recalc?'再計算':'端数調整')+'前の採用額・諸経費の連動状態に戻しました。';
+ (recalc?$('company-recalc').querySelector('summary'):$('round-standard')).focus({preventScroll:true});
+});
+function clearAdoptionSource(id){
+ delete rateLinks[id];roundedItems.delete(id);companyAdoptions?.delete(id);
+}
+function clearAdoptionOverride(id){
+ clearAdoptionSource(id);$('adopt-'+id).value='';
+ if(id==='overhead'){overheadManual=false;overheadFixedBasis=null;}
+}
+
+const companyRecalcIds=['materials','removal','protection','overhead'];
+const recalcChoices=E.items.filter(([id])=>companyRecalcIds.includes(id)).map(([id,label])=>{
+ const input=document.createElement('input');input.type='checkbox';input.dataset.recalcItem=id;
+ const caption=document.createElement('small');
+ const name=document.createElement('span');name.append(label,caption);
+ const choice=document.createElement('label');choice.className='recalc-choice';choice.append(input,name);
+ $('company-recalc-choices').append(choice);
+ return {id,input,caption};
+});
+function clearCompanyRecalcSelection(){for(const {input} of recalcChoices)input.checked=false;}
+function selectedForRecalc(){
+ return recalcChoices.filter(({input})=>input.checked&&!input.disabled).map(({id})=>id);
+}
+function recalcPreview(ids){
+ const released=new Set(ids);
+ const adoptions=Object.fromEntries(state.rows.map(row=>[row.id,released.has(row.id)?null:row.adopted]));
+ const links=Object.fromEntries(Object.entries(rateLinks).filter(([id])=>!released.has(id)));
+ const mode=released.has('overhead')?'auto':overheadMode();
+ return E.calculate(state.p,adoptions,mode,state.extraItems,links,rowOrder);
+}
+function previewRow(id,label,before,after){
+ const row=document.createElement('tr');row.dataset.recalcResult=id;
+ const heading=document.createElement('th');heading.scope='row';heading.textContent=label;row.append(heading);
+ for(const amount of [E.yen(before),E.yen(after),E.signed(after-before)]){
+  const cell=document.createElement('td');cell.textContent=amount;row.append(cell);
+ }
+ return row;
+}
+function renderCompanyRecalc(){
+ const panel=$('company-recalc');
+ panel.hidden=companyAdoptions===null;
+ if(panel.hidden)return;
+ const rows=new Map(state.rows.map(row=>[row.id,row]));
+ let eligible=0;
+ for(const {id,input,caption} of recalcChoices){
+  const row=rows.get(id),mode=adoptionMode(row);
+  if(mode==='manual')eligible++;
+  else input.checked=false;
+  input.disabled=invalid||mode!=='manual';
+  caption.textContent=adoptionLabel(row,mode);
+ }
+ const ids=selectedForRecalc();
+ $('company-recalc-none').hidden=eligible>0;
+ $('company-recalc-all').disabled=invalid||!eligible||ids.length===eligible;
+ $('company-recalc-confirm').disabled=!ids.length;
+ $('company-recalc-cancel').hidden=!recalcChoices.some(({input})=>input.checked);
+ $('company-recalc-preview').hidden=!ids.length;
+ const body=$('company-recalc-results');
+ if(!ids.length){body.replaceChildren();return;}
+ const next=recalcPreview(ids);
+ const released=new Set(ids);
+ const affected=next.rows.filter(row=>released.has(row.id)||row.booked!==rows.get(row.id).booked);
+ body.replaceChildren(...affected.map(row=>previewRow(
+  row.id,row.label+(released.has(row.id)?'':'（連動分）'),rows.get(row.id).booked,row.booked
+ )),previewRow('total','見積総額',state.total,next.total));
+}
+$('company-recalc-choices').addEventListener('change',renderCompanyRecalc);
+$('company-recalc-all').addEventListener('click',()=>{
+ for(const {input} of recalcChoices)if(!input.disabled)input.checked=true;
+ renderCompanyRecalc();
+ $('company-recalc-confirm').focus({preventScroll:true});
+});
+$('company-recalc-cancel').addEventListener('click',()=>{
+ clearCompanyRecalcSelection();renderCompanyRecalc();
+ const panel=$('company-recalc');panel.open=false;panel.querySelector('summary').focus();
+});
+$('company-recalc-confirm').addEventListener('click',()=>{
+ const ids=selectedForRecalc();
+ if(companyAdoptions===null||invalid||!ids.length)return;
+ finishItemDrag(true,false);
+ adoptionUndo=captureAdoptionState('recalc');
+ for(const id of ids)clearAdoptionOverride(id);
+ if(ids.includes('overhead'))overheadRounded=false;
+ clearCompanyRecalcSelection();
+ update();
+ $('round-notice').textContent=ids.length+'費目を標準計算に戻しました。';
+ $('undo-round').focus({preventScroll:true});
 });
 function copyValue(button){
  const id=button.dataset.item,kind=button.dataset.copy,row=state.rows.find(r=>r.id===id);
@@ -275,15 +439,12 @@ function update(){
  const currentBasis=result.subtotal.toString()+':'+p.overheadRate.toString();
  if(overheadManual&&!invalid&&overheadFixedBasis===null)overheadFixedBasis=currentBasis;
  $('overhead-warning').hidden=!overheadManual||invalid||overheadFixedBasis===currentBasis;
- $('overhead-mode-label').textContent=overheadModeLabel();
  $('row-overhead').dataset.overheadMode=overheadMode();
  $('overhead-auto').hidden=!overheadManual&&!rateLinks.overhead;
  $('overhead-auto').textContent=overheadRounded?'端数調整付き自動に戻す':'自動に戻す';
  state={p,memos,extraItems:extraInputs,...result};const bases=basis(p,result);
  for(const r of result.rows){
-  const link=rateLinks[r.id],help=$('link-help-'+r.id);help.hidden=!link;
-  $('fixed-adoption-'+r.id).hidden=r.adopted===null||!!link||$('adopt-'+r.id).getAttribute('aria-invalid')==='true'||(r.id==='overhead'&&!overheadManual);
-  if(link){$('adopt-'+r.id).value=E.format(r.booked);help.textContent=(r.id==='overhead'?'小計':'部品代')+'比 約'+E.ratio(link.amount,link.base,4,false)+'で連動。手入力で固定・空欄で標準に戻ります。';}
+  renderAdoptionState(r);
   $('basis-'+r.id).textContent=r.custom?'手入力':bases[r.id];if(!r.custom)$('standard-'+r.id).textContent=E.yen(r.standard);$('booked-'+r.id).textContent=E.yen(r.booked);$('diff-'+r.id).textContent=E.signed(r.diff);diffClass($('diff-'+r.id),r.diff);
   $('ratio-'+r.id).textContent=r.adopted!==null?'標準比 '+E.ratio(r.diff,r.standard):'';
   $('parts-ratio-'+r.id).textContent=partRatioIds.includes(r.id)?'部品代比 '+E.ratio(r.booked,p.parts,2,false):'';
@@ -325,10 +486,12 @@ function update(){
  for(const id of ['save-image','copy-text','copy-simple','preview','round-standard'])$(id).disabled=invalid;
  document.querySelectorAll('[data-copy]').forEach(button=>button.disabled=invalid||copyingButtons.has(button));
  $('round-notice').textContent='';
+ $('round-held').hidden=true;$('round-held').open=false;$('round-held-items').replaceChildren();
  $('summary-preview').hidden=true;$('image-fallback').hidden=true;$('copy-fallback').hidden=true;$('notice').textContent='';
  if(imageUrl){URL.revokeObjectURL(imageUrl);imageUrl=null;$('export-image').removeAttribute('src');}
- renderItemEditors();renderCopyMarks();renderSimplePreview();refreshNavigationHint();
- $('undo-round').hidden=!roundUndo;$('undo-round-help').hidden=!roundUndo;
+ renderItemEditors();renderCompanyRecalc();renderCopyMarks();renderSimplePreview();refreshNavigationHint();
+ $('undo-round').textContent=adoptionUndo?.kind==='recalc'?'再計算前に戻す':'調整前に戻す';
+ $('undo-round').hidden=!adoptionUndo;$('undo-round-help').hidden=!adoptionUndo;
  catFeedback(invalid?'error':'typing');
  window.CompanyImportUI?.refresh();
 }
@@ -374,9 +537,9 @@ async function copyRow(button){
 $('estimate-form').addEventListener('click',event=>{
  const remove=event.target.closest('button[data-remove-custom]');
  if(remove){
-  invalidateRoundUndo();
+  clearAdoptionUndo();
   const id=remove.dataset.removeCustom;
-  roundedItems.delete(id);
+  clearAdoptionSource(id);
   clearTimeout(copyFeedbackTimers.get(id));copyFeedbackTimers.delete(id);
   finishItemDrag(true,false);customItems=customItems.filter(item=>item.id!==id);rowOrder=rowOrder.filter(item=>item!==id);$('row-'+id).remove();syncRowDOM();update();$('add-custom-item').focus();return;
  }
@@ -385,13 +548,14 @@ $('estimate-form').addEventListener('click',event=>{
 });
 $('estimate-form').addEventListener('submit',e=>e.preventDefault());
 $('estimate-form').addEventListener('input',event=>{
- finishItemDrag(true,false);invalidateRoundUndo();
+ if(event.target.hasAttribute('data-recalc-item'))return;
+ finishItemDrag(true,false);clearAdoptionUndo();
  if(settings.some(([id])=>id===event.target.id))settingSources[event.target.id]='manual';
  if(partsRateIds.includes(event.target.id))partsRateModes[event.target.id]='manual';
  if(event.target.id==='parts')syncPartsRates();
- if(event.target.id.startsWith('adopt-')){const id=event.target.id.slice(6);delete rateLinks[id];roundedItems.delete(id);}
+ if(event.target.id.startsWith('adopt-'))clearAdoptionSource(event.target.id.slice(6));
  const settingLink={materialsRate:'materials',removalRate:'removal',protectionRate:'protection',overheadRate:'overhead'}[event.target.id];
- if(settingLink&&rateLinks[settingLink]){delete rateLinks[settingLink];$('adopt-'+settingLink).value='';}
+ if(settingLink&&rateLinks[settingLink])clearAdoptionOverride(settingLink);
  if(event.target.id==='adopt-overhead'){
   overheadManual=event.target.value.normalize('NFKC').trim()!=='';
   overheadFixedBasis=null;
@@ -401,7 +565,7 @@ $('estimate-form').addEventListener('input',event=>{
 $('overhead-auto').addEventListener('click',()=>{
  resetToOverheadAuto();
 });
-function resetToOverheadAuto(){finishItemDrag(true,false);invalidateRoundUndo();delete rateLinks.overhead;overheadManual=false;overheadFixedBasis=null;update();}
+function resetToOverheadAuto(){finishItemDrag(true,false);clearAdoptionUndo();clearAdoptionOverride('overhead');update();}
 
 $('estimate-form').addEventListener('focusin',e=>{
  const el=e.target;if(!el.dataset.kind || !el.value.includes(','))return;
@@ -421,12 +585,24 @@ $('round-standard').addEventListener('click',()=>{
  if(targets.some(row=>adopted[row.id]>limit)||(!keepOverhead&&preview.overhead>limit)){
   $('round-notice').textContent='計算結果が採用額の入力上限（1兆円）を超えるため、一括入力できません。基本入力・標準設定を確認してください。';return;
  }
- if(!roundUndo)roundUndo=captureRoundState();
- const kept=state.rows.filter(row=>row.id!=='parts'&&(row.id==='overhead'?keepOverhead:!targets.includes(row))).length;
+ if(adoptionUndo?.kind!=='round')adoptionUndo=captureAdoptionState('round');
+ const kept=state.rows.filter(row=>row.id!=='parts'&&(row.id==='overhead'?keepOverhead:!targets.includes(row)));
  for(const row of targets){$('adopt-'+row.id).value=E.format(adopted[row.id]);roundedItems.add(row.id);}
  if(!keepOverhead){overheadRounded=true;overheadFixedBasis=null;}
  update();
- $('round-notice').textContent='端数調整を実行しました。'+(kept?'手動・復元設定済みの'+kept+'項目は変更していません。':'');
+ const linked=kept.filter(row=>rateLinks[row.id]).length;
+ const fixed=kept.length-linked;
+ $('round-notice').textContent='端数調整を実行しました。'+
+  (fixed?'固定中の'+fixed+'項目は変更していません。':'')+
+  (linked?'引継掛率で連動中の'+linked+'項目は連動を維持しました。':'');
+ if(kept.length){
+  for(const row of kept){
+   const item=document.createElement('li');
+   item.textContent=row.label+' · '+adoptionLabel(row,adoptionMode(row));
+   $('round-held-items').append(item);
+  }
+  $('round-held').hidden=false;
+ }
  catFeedback('round');
 });
 function resetDiscounts(){for(const mode of ['rate','amount'])$('discount-'+mode).value='';}
@@ -502,6 +678,10 @@ function restoreConditions(data){
  for(const [id] of itemDefinitions()){$('adopt-'+id).value=data.adopted[id]===null?'':E.format(data.adopted[id]);$('memo-'+id).value=data.memos[id];$('detail-'+id).open=false;}
  partsRateModes=data.partsRateModes??{materialsRate:'imported',removalRate:'imported'};
  rateLinks={...data.links};overheadRounded=data.rounded;overheadManual=data.mode==='manual';overheadFixedBasis=null;
+ if(data.presentItemIds){
+  const present=new Set(data.presentItemIds);
+  companyAdoptions=new Map(Object.keys(data.adopted).filter(id=>data.adopted[id]!==null).map(id=>[id,present.has(id)]));
+ }
  update();
 }
 $('apply-import').addEventListener('click',()=>{

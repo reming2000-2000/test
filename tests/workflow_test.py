@@ -35,17 +35,17 @@ with sync_playwright() as p:
   expect(page.locator('#import-preview')).to_be_visible();page.locator('#apply-import').click()
  assert page.locator('#undo-round').is_hidden()
  assert page.locator('#setting-changes').is_hidden()
- # 1: all explicit adopted amounts, including equal/zero values, show a fixed badge.
+ # 1: adoption captions distinguish standard, explicit zero and equal-to-standard amounts.
  base();fill('adopt-materials','70000')
- expect(page.locator('#fixed-adoption-materials')).to_be_visible()
+ expect(page.locator('#adoption-state-materials')).to_be_visible()
  fill('parts','900000');assert page.locator('#booked-materials').inner_text()=='70,000円'
- fill('adopt-materials','-1');assert page.locator('#fixed-adoption-materials').is_hidden()
- fill('adopt-materials','');assert page.locator('#fixed-adoption-materials').is_hidden()
- fill('adopt-parts','0');expect(page.locator('#fixed-adoption-parts')).to_be_visible()
- fill('adopt-labor','87000');expect(page.locator('#fixed-adoption-labor')).to_be_visible()
- assert page.locator('#fixed-adoption-overhead').is_hidden()
- fill('adopt-overhead','0');expect(page.locator('#fixed-adoption-overhead')).to_be_visible()
- page.locator('#overhead-auto').click();assert page.locator('#fixed-adoption-overhead').is_hidden()
+ fill('adopt-materials','-1');assert page.locator('#adoption-state-materials').is_hidden()
+ fill('adopt-materials','');expect(page.locator('#adoption-state-materials')).to_have_text('自動計算')
+ fill('adopt-parts','0');expect(page.locator('#adoption-state-parts')).to_be_visible()
+ fill('adopt-labor','87000');expect(page.locator('#adoption-state-labor')).to_be_visible()
+ expect(page.locator('#overhead-mode-label')).to_have_text('自動連動')
+ fill('adopt-overhead','0');expect(page.locator('#overhead-mode-label')).to_have_text('手動固定')
+ page.locator('#overhead-auto').click();expect(page.locator('#overhead-mode-label')).to_have_text('自動連動')
  # 2/4: independent successful markers; unchanged values retain them, changed payloads clear only affected markers.
  reset();base();fill('adopt-materials','70000')
  for button in page.locator('[data-copy]').all():
@@ -102,7 +102,7 @@ with sync_playwright() as p:
  before=snapshot();round_();expect(page.locator('#link-help-materials')).to_be_visible()
  page.locator('#undo-round').click();assert snapshot()==before
  expect(page.locator('#link-help-materials')).to_be_visible();expect(page.locator('#link-help-overhead')).to_be_visible()
- assert page.locator('#fixed-adoption-materials').is_hidden()
+ assert page.locator('#adoption-state-materials').is_hidden()
  fill('parts','1700000');assert page.locator('#booked-materials').inner_text()=='140,000円'
  # Any later estimate edit or mode/row change invalidates the undo, without reverting the new edit.
  for action in ['memo','amount','setting','add','remove','overhead','rates','import','reset']:
@@ -181,7 +181,7 @@ with sync_playwright() as p:
  assert page.locator('.is-copied').count()>=2
  page.reload();assert page.locator('.is-copied').count()==0
  assert page.locator('#undo-round').is_hidden() and page.locator('#setting-changes').is_hidden()
- assert page.locator('#fixed-adoption-materials').is_hidden()
+ expect(page.locator('#adoption-state-materials')).to_have_text('自動計算')
  assert page.evaluate('localStorage.length+sessionStorage.length')==0
  assert ctx.cookies()==[]
  assert all(url.startswith('blob:') or url.startswith('http://127.0.0.1:8000') for url in requests)
