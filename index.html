@@ -89,7 +89,7 @@
 </details>
 <div class="rounding-toolbar"><div><button id="round-standard" type="button" class="button secondary">標準額の端数を整えて採用</button><p>空欄・この画面で一括調整した項目が対象。手動額・復元額・部品代は保持します。100万円以上は1,000円単位、それ未満は100円単位で切り捨て。諸経費の手動固定・復元した連動も維持します。</p><button id="undo-round" type="button" class="text-button" hidden>調整前に戻す</button><small id="undo-round-help" hidden>次の編集まで取り消せます。</small></div><div class="rounding-feedback"><p id="round-notice" role="status"></p><details id="round-held" class="inline-help" hidden><summary>端数調整の対象外だった費目</summary><ul id="round-held-items"></ul></details></div></div>
 <details id="reference-rules" class="panel reference-rules">
- <summary>部規定の参考表 <span>掛率・交通費などの目安</span></summary>
+ <summary>見積計算の参考値 <span>掛率・交通費などの目安</span></summary>
  <p class="reference-intro">見積検討用の参考値です。実際の工事内容に応じて、標準設定・採用額を調整してください。CATの計算方法・端数処理を基準に使用します。</p>
  <h3>部品価格に応じた基本掛率</h3>
  <p>基本入力の部品代に合わせて、次の2項目の標準設定が自動で切り替わります。</p>
@@ -99,11 +99,11 @@
   <tr data-reference-band="2"><th scope="row">100万円以上〜300万円未満</th><td>3％</td><td>2％</td></tr>
   <tr data-reference-band="3"><th scope="row">300万円以上</th><td>2％</td><td>1％</td></tr>
  </tbody></table>
- <p class="reference-note">資料では50万円ちょうどの区分が重複しているため、本ツールでは「50万円以下」を優先します。部品代0円・空欄では掛率を切り替えません。</p>
+ <p class="reference-note">50万円ちょうどは「50万円以下」の掛率を使います。部品代0円・空欄では掛率を切り替えません。</p>
  <p>率の手入力後は、その項目の掛率を保持します。簡易コピーから読み込んだ掛率も保持します。標準設定の「2項目を部品代に連動させる」で自動に戻せます。採用額の入力・補正理由・原価表示は従来どおり利用できます。</p>
- <p class="reference-note">資料上、上記費用は百円単位切り捨てです。CATでは標準額を通常計算し、必要なときに「標準額の端数を整えて採用」で調整します（100万円以上の費目は1,000円単位、それ未満は100円単位）。</p>
+ <p class="reference-note">上記費用の端数処理の目安は百円単位切り捨てです。CATでは標準額を通常計算し、必要なときに「標準額の端数を整えて採用」で調整します（100万円以上の費目は1,000円単位、それ未満は100円単位）。</p>
  <details><summary>管理会社費用・現場管理費・安全対策費</summary>
-  <p>管理会社費用を計上する場合は、消耗資材費・撤去品引取費の掛率引き上げを検討します。次の表は手動調整の参考です。管理会社へ事前に説明・伝達する旨の記載があります。</p>
+  <p>管理会社費用を計上する場合は、消耗資材費・撤去品引取費の掛率引き上げを検討します。次の表は手動調整の参考です。掛率を補正する場合は、事前に管理会社へ説明してください。</p>
   <h4>管理会社費用の率が7％以上の場合</h4>
   <table><thead><tr><th scope="col">部品価格</th><th scope="col">消耗資材費</th><th scope="col">撤去品引取費</th></tr></thead><tbody>
    <tr><th scope="row">50万円以下</th><td>15％</td><td>11％</td></tr>
@@ -111,14 +111,14 @@
    <tr><th scope="row">100万円以上〜300万円未満</th><td>9％</td><td>7％</td></tr>
    <tr><th scope="row">300万円以上</th><td>7％</td><td>5％</td></tr>
   </tbody></table>
-  <h4>管理会社費用の率が7％未満の場合（資料の明示例）</h4>
+  <h4>管理会社費用の率が7％未満の場合（補正例）</h4>
   <table><thead><tr><th scope="col">部品価格</th><th scope="col">消耗資材費</th><th scope="col">撤去品引取費</th></tr></thead><tbody>
    <tr><th scope="row">100万円以上〜300万円未満</th><td>7％</td><td>5％</td></tr>
    <tr><th scope="row">300万円以上</th><td>5％</td><td>3％</td></tr>
   </tbody></table>
-  <p class="reference-note">100万円未満の具体率は資料に明示されていないため、都度確認してください。</p>
-  <p>現場管理費は、元請け時に保守契約先や別の管理会社へ支払う費用の目安です。資料では支払処理の漏れ防止のため「現場管理費」の名称を基本としています。</p>
-  <p>安全対策費を計上する場合も、消耗資材費・撤去品引取費の割合に注意する旨の記載があります。具体的な変更率は都度確認してください。</p>
+  <p class="reference-note">部品価格が100万円未満の場合の補正率は、都度確認してください。</p>
+  <p>現場管理費は、元請け時に保守契約先や別の管理会社へ支払う費用の目安です。支払処理で確認できるよう、「現場管理費」の名称で区別します。</p>
+  <p>安全対策費を計上する場合も、消耗資材費・撤去品引取費の掛率を確認してください。具体的な変更率は都度確認してください。</p>
  </details>
  <details><summary>交通費・部品送料・廃油処理</summary>
   <h4>作業員交通費（1台あたり・平日／休日／夜間共通）</h4>
@@ -139,19 +139,19 @@
    <tr><th scope="row">操作盤</th><td>15,000円／式</td></tr>
    <tr><th scope="row">操作盤液晶パネル</th><td>8,000円／式</td></tr>
   </tbody></table>
-  <p>ユニックの目安は資料にある特定運搬条件の基本価格です。経路・距離など実際の条件で確認してください。制御機器・制御盤内部品は数量に応じて都度積算します。落下防止装置・レベル合わせ装置・トレー固定装置は、それぞれ＋15,000円が目安です。</p>
+  <p>ユニックの基本価格は、特定の運搬条件を想定した目安です。経路・距離など実際の条件で確認してください。制御機器・制御盤内部品は数量に応じて都度積算します。落下防止装置・レベル合わせ装置・トレー固定装置は、それぞれ＋15,000円が目安です。</p>
   <p>廃油処理：3,500円／缶（地区共通）。部品送料とは別に、必要に応じて撤去品引取費などの採用額へ反映してください。</p>
  </details>
  <details><summary>宿泊費・諸経費・法定福利費</summary>
   <h4>宿泊費</h4>
   <p>移動日を除く工事が2日以上で、鉄道主要駅間の距離が50km以上の場合の目安：政令指定都市は20,000円／日、その他の地域は15,000円／日。必要な費目は「項目を追加」で入力できます。</p>
   <h4>諸経費率</h4>
-  <table><thead><tr><th scope="col">条件</th><th scope="col">資料の目安</th></tr></thead><tbody>
+  <table><thead><tr><th scope="col">条件</th><th scope="col">参考掛率</th></tr></thead><tbody>
    <tr><th scope="row">契約物件</th><td>10％</td></tr>
    <tr><th scope="row">未契約・見積100万円以上</th><td>15％</td></tr>
    <tr><th scope="row">未契約・見積100万円未満</th><td>20％</td></tr>
   </tbody></table>
-  <p class="reference-note">資料の丸め：諸経費1万円以上は百円単位切り上げ、千円未満は十円単位切り上げ。千円以上1万円未満の扱いは明記されていません。</p>
+  <p class="reference-note">端数処理の目安は、諸経費1万円以上なら百円単位切り上げ、千円未満なら十円単位切り上げです。千円以上1万円未満の扱いは都度確認してください。</p>
   <p>CATでは、今の標準設定・諸経費の自動連動／端数調整／手動固定を使用します。区分ごとの率は必要に応じて標準設定で変更してください。</p>
   <h4>法定福利費</h4>
   <p>作業費×16.315％が目安（地区・発注先区分共通）。CATでは採用した交換作業費を基準に計算し、1円未満を切り捨てます。</p>
@@ -171,7 +171,7 @@
 </section>
 <section class="panel" aria-labelledby="changes-title"><div class="section-heading"><h2 id="changes-title"><span class="step">03</span>標準から変更した項目</h2><span id="change-count" class="tag"></span></div><p id="review-guide" class="review-guide" hidden>赤枠：標準との差が1％以上、かつ差額100円以上（標準額100万円以上は1,000円以上）。</p><div id="setting-changes" class="setting-changes" hidden><h3>標準設定の変更</h3><ul id="setting-change-list"></ul></div><div id="changes"></div></section>
 <section class="panel export-panel" aria-labelledby="export-title"><div class="section-heading"><div><h2 id="export-title"><span class="step">04</span>結果を持ち出す</h2><p class="muted small">条件・内訳・補正理由をまとめた確認シートを生成します。</p></div></div><div class="export-actions"><button id="save-image" class="button primary">画像として保存 <span>PNG ↓</span></button><button id="copy-text" class="button secondary">結果をテキストでコピー</button><button id="copy-simple" class="button secondary">簡易版をコピー</button><button id="preview" class="text-button">保存用サマリーを確認</button></div><p class="field-guide">簡易版は掛率・採用額・メモを短くまとめます。後日、画面上部に貼り付けると同じ条件で再計算できます。</p><details id="simple-preview" class="simple-preview"><summary>簡易コピーの内容を確認</summary><pre id="simple-text"></pre></details><div id="summary-preview" hidden><h3>見積計算結果の確認シート</h3><pre id="summary-text"></pre></div><div id="image-fallback" hidden><p>保存が始まらない場合は、画像を長押しするか、下のリンクから保存してください。</p><a id="image-link" download>PNG画像をダウンロード</a><img id="export-image" alt="見積計算結果の確認シート"></div><div id="copy-fallback" hidden><label for="copy-area">コピーできない場合は、以下を選択してコピーしてください。</label><textarea id="copy-area" readonly rows="14"></textarea></div><p id="notice" role="status" class="notice"></p></section>
-<footer><span class="footer-product">CAT <small id="app-version">v1.7.0</small></span><span>計算はブラウザ内で完結 · 保存はあなたの操作で</span></footer>
+<footer><span class="footer-product">CAT <small id="app-version">v1.7.1</small></span><span>計算はブラウザ内で完結 · 保存はあなたの操作で</span></footer>
 </main>
 
 </body></html>

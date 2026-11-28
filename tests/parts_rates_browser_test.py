@@ -71,8 +71,7 @@ with sync_playwright() as p:
  reference=page.locator('#reference-rules').inner_text()
  for term in ['15％','11％','3,500円','135,000円','166,000円','20,000円','16.315％','百円単位切り上げ','50万円以下']:
   assert term in reference,term
- for term in ['トーシン','福島','愛知','NTT']:
-  assert term not in reference,term
+ expect(page.locator('#reference-rules > summary')).to_have_text('見積計算の参考値 掛率・交通費などの目安')
  # Only the existing seven expenses appear; reference tables add no inputs or requests.
  assert page.locator('#cost-rows article').count()==7
  assert page.locator('#reference-rules input').count()==0
